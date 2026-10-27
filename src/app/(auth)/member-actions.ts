@@ -8,12 +8,13 @@ import { homeFor, type StableRole } from "@/lib/access";
 import { linkMembership } from "@/lib/members";
 import { str } from "@/lib/utils";
 
-export type JoinState = { error?: string } | undefined;
+export type JoinState = { error?: string; ok?: string } | undefined;
 
 /** Create a member login, or sign in to an existing one with the same email. */
 async function userForJoin(fd: FormData): Promise<{ id: string } | { error: string }> {
   const current = await getCurrentUser();
-  if (current) return current;
+  // Already signed in to a rider/staff login and no new details typed: add the stable to that account
+  if (current && current.role === "MEMBER" && !str(fd, "email")) return current;
   const name = str(fd, "name");
   const email = str(fd, "email")?.toLowerCase();
   const password = str(fd, "password");
@@ -32,12 +33,15 @@ export async function acceptInvite(token: string, _: JoinState, fd: FormData): P
   const m = await db.query.memberships.findFirst({ where: eq(schema.memberships.inviteToken, token) });
   if (!m || m.status !== "INVITED") return { error: "This invite was already used or cancelled. Ask the stable for a new link." };
   if (m.inviteExpires && m.inviteExpires < new Date()) return { error: "This invite has expired. Ask the stable for a new link." };
+  const current = await getCurrentUser();
   const u = await userForJoin(fd);
   if ("error" in u) return u;
   const user = await db.query.users.findFirst({ where: eq(schema.users.id, u.id) });
-  if (user && user.role !== "MEMBER" && user.id === m.ownerId) return { error: "This is the stable owner's own account - sign out and open the link on the person's phone." };
-  await db.update(schema.memberships).set({ userId: u.id, status: "ACTIVE", inviteToken: null, inviteExpires: null, email: m.email ?? user?.email ?? null }).where(eq(schema.memberships.id, m.id));
+  if (user?.id === m.ownerId) return { error: "That's the stable owner's own login. Type the person's own email and a password for them." };
+  await db.update(schema.memberships).set({ userId: u.id, status: "ACTIVE", inviteToken: null, inviteExpires: null, email: user?.email ?? m.email ?? null }).where(eq(schema.memberships.id, m.id));
   await linkMembership({ ...m, userId: u.id, status: "ACTIVE" });
+  // The owner set up the login for them: stay signed in as the owner
+  if (current && current.id === m.ownerId) return { ok: `${m.name}'s login is ready. They can sign in with ${user?.email} and the password you chose.` };
   await createSession(u.id);
   redirect(homeFor(m.role as StableRole));
 }

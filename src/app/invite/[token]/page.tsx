@@ -24,7 +24,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
             <p className="mt-2 text-sm text-red-600">This invite link is not valid any more. Ask the stable to send a new one.</p>
           )}
         </div>
-        {valid && <AcceptForm token={token} signedInAs={current ? `${current.name} (${current.email})` : null} defaults={{ name: m.name, email: m.email, phone: m.phone }} />}
+        {valid && <AcceptForm token={token} signedInAs={current?.role === "MEMBER" ? `${current.name} (${current.email})` : null} ownerNote={!!current && current.id === m.ownerId} defaults={{ name: m.name, email: m.email, phone: m.phone }} />}
         <p className="text-center text-xs text-stone-500">Already have a login? <Link href="/login" className="link">Sign in</Link>, then open this link again.</p>
       </div>
     </main>
