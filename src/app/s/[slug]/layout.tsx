@@ -2,6 +2,8 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { getBookingPage } from "./data";
 import { whatsappLink } from "@/lib/booking";
+import { getCurrentUser } from "@/lib/auth";
+import { logout } from "../../(auth)/actions";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -12,6 +14,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 export default async function PublicStableLayout({ children, params }: { children: React.ReactNode; params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const { settings } = await getBookingPage(slug);
+  const user = await getCurrentUser();
   const wa = whatsappLink(settings.whatsapp, `Hello ${settings.displayName}, I have a question about booking.`);
   return (
     <div className="min-h-screen bg-brand-50">
@@ -19,7 +22,14 @@ export default async function PublicStableLayout({ children, params }: { childre
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
           <Link href={`/s/${slug}`} className="text-lg font-bold text-forest-700">🐎 {settings.displayName}</Link>
           <div className="flex items-center gap-2">
-          <Link href={`/s/${slug}/join`} className="btn-secondary">Sign in / Join</Link>
+          {user ? (
+            <>
+              <Link href={user.role === "MEMBER" ? "/me" : "/dashboard"} className="btn-secondary" title={`Signed in as ${user.name}`}>My account</Link>
+              <form action={logout}><button className="btn-secondary hidden sm:inline-flex">Sign out</button></form>
+            </>
+          ) : (
+            <Link href={`/s/${slug}/join`} className="btn-secondary">Sign in / Join</Link>
+          )}
           {wa && (
             <a href={wa} target="_blank" rel="noreferrer" className="btn bg-emerald-600 text-white hover:bg-emerald-700">
               WhatsApp us
