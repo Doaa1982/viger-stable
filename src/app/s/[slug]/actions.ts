@@ -1,5 +1,6 @@
 "use server";
 
+import { emailBookingReceived, emailStableNewBooking } from "@/lib/emails";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
@@ -83,7 +84,7 @@ export async function createCustomerBooking(slug: string, serviceId: string, _pr
 
   const total = bookingTotal(service, settings, guests);
   const reference = newReference();
-  await db.insert(schema.customerBookings).values({
+  const [booking] = await db.insert(schema.customerBookings).values({
     ownerId: settings.ownerId,
     serviceId: service.id,
     serviceName: service.name,
@@ -99,7 +100,9 @@ export async function createCustomerBooking(slug: string, serviceId: string, _pr
     paymentMethod: payment,
     totalEgp: total.egp,
     totalUsd: total.usd,
-  });
+  }).returning();
+  // Emails never block the booking
+  await Promise.allSettled([emailBookingReceived(booking), emailStableNewBooking(booking)]);
   revalidatePath("/customer-bookings");
   redirect(`/s/${slug}/booking/${reference}`);
 }

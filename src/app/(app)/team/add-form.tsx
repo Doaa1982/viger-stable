@@ -20,7 +20,7 @@ export function AddPersonForm() {
       <div className="grid gap-2 md:grid-cols-3">
         <input name="name" className="input" placeholder="Full name" required />
         <input name="phone" className="input" placeholder="WhatsApp, e.g. +20 100 123 4567" />
-        <input name="email" type="email" className="input" placeholder="Email (optional)" />
+        <input name="email" type="email" className="input" placeholder="Email (optional - we email the invite)" />
       </div>
       <div className="grid gap-2 md:grid-cols-2">
         {OPTIONS.map(([v, t, d]) => (

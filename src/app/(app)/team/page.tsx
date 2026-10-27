@@ -8,6 +8,7 @@ import { Badge, Card, Empty, PageHeader } from "@/components/ui";
 import { fmtDate } from "@/lib/utils";
 import { AddPersonForm } from "./add-form";
 import { CopyButton } from "./copy-button";
+import { EmailInviteButton } from "./email-invite-button";
 import { changeRole, newInviteLink, removePerson, setMemberStatus } from "./actions";
 
 const STATUS_TONE: Record<string, "amber" | "green" | "gray" | "blue"> = { INVITED: "blue", PENDING: "amber", ACTIVE: "green", DISABLED: "gray" };
@@ -57,6 +58,7 @@ export default async function TeamPage() {
                       <span className="break-all font-mono text-xs">{link}</span>
                       {expired ? <Badge tone="red">expired</Badge> : <span className="text-xs text-stone-500">valid until {fmtDate(p.inviteExpires)}</span>}
                       <CopyButton text={link} />
+                      {p.email && <EmailInviteButton id={p.id} />}
                       {wa && <a href={wa} target="_blank" rel="noreferrer" className="btn btn-sm bg-emerald-600 text-white hover:bg-emerald-700">Send on WhatsApp</a>}
                       <form action={newInviteLink.bind(null, p.id)}><button className="btn-secondary btn-sm">New link</button></form>
                     </div>
