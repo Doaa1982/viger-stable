@@ -1,3 +1,4 @@
+import { stallLabel } from "@/lib/yard";
 import "server-only";
 import type Anthropic from "@anthropic-ai/sdk";
 import { and, asc, desc, eq, gte, like, lt, lte } from "drizzle-orm";
@@ -105,7 +106,7 @@ async function runTool(userId: string, name: string, input: Record<string, unkno
       const rows = await db.query.horses.findMany({ where: eq(schema.horses.ownerId, userId), with: { stall: true } });
       if (!rows.length) return "No horses yet.";
       return rows
-        .map((h) => `${h.name}: ${h.breed ?? "?"}, ${h.sex ?? "?"}, born ${h.birthYear ?? "?"}, ${h.discipline ?? "-"}, stall ${h.stall?.name ?? "none"}, listing ${h.listingType}`)
+        .map((h) => `${h.name}: ${h.breed ?? "?"}, ${h.sex ?? "?"}, born ${h.birthYear ?? "?"}, ${h.discipline ?? "-"}, box ${stallLabel(h.stall) ?? "none"}, listing ${h.listingType}`)
         .join("\n");
     }
     case "get_horse": {

@@ -1,3 +1,4 @@
+import { stallLabel } from "@/lib/yard";
 import Link from "next/link";
 import { asc, eq } from "drizzle-orm";
 import { db, schema } from "@/db";
@@ -26,7 +27,7 @@ export default async function FeedingPage({ searchParams }: { searchParams: Prom
               <tbody>
                 {board.map(({ h, plan }) => (
                   <tr key={h.id}>
-                    <td className="font-medium"><Link href={`/feeding?horse=${h.id}`} className="link">{h.name}</Link><div className="text-xs font-normal text-stone-500">{h.stall?.name}</div></td>
+                    <td className="font-medium"><Link href={`/feeding?horse=${h.id}`} className="link">{h.name}</Link><div className="text-xs font-normal text-stone-500">{stallLabel(h.stall)}</div></td>
                     <td>{plan?.morning ?? <span className="text-stone-300">—</span>}</td>
                     <td>{plan?.midday ?? <span className="text-stone-300">—</span>}</td>
                     <td>{plan?.evening ?? <span className="text-stone-300">—</span>}</td>

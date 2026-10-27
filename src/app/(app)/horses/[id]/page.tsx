@@ -1,3 +1,4 @@
+import { stallLabel } from "@/lib/yard";
 import Link from "next/link";
 import { and, asc, desc, eq, gte } from "drizzle-orm";
 import { db, schema } from "@/db";
@@ -38,7 +39,7 @@ export default async function HorseDetail({ params }: { params: Promise<{ id: st
     ["FEI ID", horse.feiId],
     ["Microchip", horse.microchip],
     ["Pedigree", horse.sire || horse.dam ? `${horse.sire ?? "?"} × ${horse.dam ?? "?"}${horse.damSire ? ` (${horse.damSire})` : ""}` : null],
-    ["Stall", stall?.name ?? null],
+    ["Stable / box", stallLabel(stall)],
   ];
 
   return (
@@ -126,7 +127,7 @@ export default async function HorseDetail({ params }: { params: Promise<{ id: st
             <AiPanel action={trainingPlanAction} button="Plan this week" hidden={{ horseId: horse.id }}>
               <div className="grid grid-cols-3 gap-2">
                 <input name="goal" className="input col-span-2" placeholder="Goal, e.g. step up to 1.30m in 2 months" />
-                <select name="days" className="input" defaultValue="5">{[3, 4, 5, 6].map((d) => <option key={d} value={d}>{d} days/wk</option>)}</select>
+                <select name="days" className="input" defaultValue="5">{[1, 2, 3, 4, 5, 6].map((d) => <option key={d} value={d}>{d} {d === 1 ? "day" : "days"}/wk</option>)}</select>
               </div>
               <input name="notes" className="input" placeholder="Recent results or notes (optional)" />
             </AiPanel>
@@ -190,14 +191,14 @@ export default async function HorseDetail({ params }: { params: Promise<{ id: st
           </form>
         </Card>
 
-        <Card title="Trial availability">
+        <Card title="Booking availability">
           <form action={addTrialSlot.bind(null, horse.id)} className="mb-4 flex flex-wrap items-end gap-2">
             <label className="block"><span className="lbl">Start</span><input name="start" type="datetime-local" className="input" required /></label>
             <label className="block"><span className="lbl">Hours</span><input name="hours" type="number" defaultValue={2} min={1} max={8} className="input w-20" /></label>
             <SubmitButton className="btn-secondary btn-sm">Add slot</SubmitButton>
           </form>
           {slots.length === 0 ? (
-            <p className="text-sm text-stone-500">No open slots. Buyers can still request a custom date.</p>
+            <p className="text-sm text-stone-500">No open times yet. Add the times this horse can be booked to view or try - people can still request another date.</p>
           ) : (
             <ul className="space-y-1 text-sm">
               {slots.map((s) => (

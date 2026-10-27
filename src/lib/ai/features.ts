@@ -542,7 +542,7 @@ export async function trainingPlan(h: Horse, goal: string, daysPerWeek: number, 
     return `**Weekly plan for ${h.name} - goal: ${goal || "general fitness"} (demo mode)**\n\n${lines.join("\n")}\n\nRide before 10:00 or after 17:00 in summer heat. _Connect the AI for a plan built on your horse's history._`;
   }
   return askText({
-    system: "You are a professional equestrian coach. Build safe, progressive weekly training plans. Include warm-up/cool-down, one or two rest days, and heat management for Egypt.",
+    system: "You are a professional equestrian coach. Build safe, progressive weekly training plans. Include warm-up/cool-down, rest or turnout on the non-riding days, and heat management for Egypt. Use exactly the number of riding days given.",
     prompt: `Horse:
 ${horseFacts(h)}
 Goal: ${goal || "general fitness and progression"}

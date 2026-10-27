@@ -49,8 +49,8 @@ async function main() {
   const stallRows = await db
     .insert(s.stalls)
     .values([
-      ...Array.from({ length: 8 }, (_, i) => ({ ownerId: stable.id, name: `Box ${i + 1}`, building: i < 4 ? "Main barn" : "New barn" })),
-      { ownerId: stable.id, name: "Paddock A", building: "Fields", kind: "PADDOCK", capacity: 3 },
+      ...Array.from({ length: 8 }, (_, i) => ({ ownerId: stable.id, name: `Box ${(i % 4) + 1}`, building: i < 4 ? "Stable 1" : "Stable 2" })),
+      { ownerId: stable.id, name: "Paddock A", building: "Paddocks", kind: "PADDOCK", capacity: 3 },
     ])
     .returning();
 

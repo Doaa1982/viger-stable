@@ -1,3 +1,4 @@
+import { stallLabel } from "@/lib/yard";
 import Link from "next/link";
 import { asc, eq } from "drizzle-orm";
 import { db, schema } from "@/db";
@@ -24,7 +25,7 @@ export default async function HorsesPage() {
                   {h.listingType !== "NONE" && <Badge tone={h.listingType === "SALE" ? "green" : "blue"}>For {h.listingType.toLowerCase()}</Badge>}
                 </div>
                 <p className="text-sm text-stone-500">{[h.breed, label(h.sex), age(h.birthYear) && `${age(h.birthYear)} yrs`].filter((x) => x && x !== "—").join(" · ")}</p>
-                <p className="text-sm text-stone-500">{h.discipline ?? "No discipline"}{h.stall && ` · ${h.stall.name}`}</p>
+                <p className="text-sm text-stone-500">{h.discipline ?? "No discipline"}{h.stall && ` · ${stallLabel(h.stall)}`}</p>
               </div>
             </Link>
           ))}
