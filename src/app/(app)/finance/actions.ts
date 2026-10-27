@@ -7,7 +7,7 @@ import { db, schema } from "@/db";
 import { requireUser } from "@/lib/auth";
 import { aiEnabled, askText } from "@/lib/ai/client";
 import type { AiState } from "@/components/ai-panel";
-import { addDays, date, egp, num, str } from "@/lib/utils";
+import { addDays, date, egp, num, str, ymd } from "@/lib/utils";
 
 export async function addTransaction(fd: FormData) {
   const user = await requireUser();
@@ -109,8 +109,8 @@ export async function financeInsightsAction(): Promise<AiState> {
     }
     const text = await askText({
       system: "You are a finance advisor for horse yards. Be concrete, use EGP, max 200 words, markdown bullets.",
-      prompt: `Transactions (last 90 days):\n${tx.map((t) => `${t.date.toISOString().slice(0, 10)} ${t.kind} ${t.category} ${t.amount} ${t.horse?.name ?? ""} ${t.description ?? ""}`).join("\n")}
-Unpaid invoices: ${unpaid.map((i) => `${i.number} ${i.clientName} ${i.total} due ${i.dueAt.toISOString().slice(0, 10)}`).join("; ") || "none"}
+      prompt: `Transactions (last 90 days):\n${tx.map((t) => `${ymd(t.date)} ${t.kind} ${t.category} ${t.amount} ${t.horse?.name ?? ""} ${t.description ?? ""}`).join("\n")}
+Unpaid invoices: ${unpaid.map((i) => `${i.number} ${i.clientName} ${i.total} due ${ymd(i.dueAt)}`).join("; ") || "none"}
 Give: 1) a summary, 2) where money is leaking, 3) cost per horse insight, 4) a forecast for next month, 5) three actions.`,
       maxTokens: 800,
     });

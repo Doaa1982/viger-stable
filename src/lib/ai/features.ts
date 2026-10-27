@@ -2,7 +2,7 @@ import "server-only";
 import { aiEnabled, askJson, askText } from "./client";
 import type { SavedUpload } from "@/lib/uploads";
 import type { schema } from "@/db";
-import { age, label } from "@/lib/utils";
+import { age, fmtDate, label, ymd } from "@/lib/utils";
 
 type Horse = typeof schema.horses.$inferSelect;
 type Health = typeof schema.healthRecords.$inferSelect;
@@ -34,7 +34,7 @@ function healthFacts(records: Health[]) {
     .slice(0, 25)
     .map(
       (r) =>
-        `- ${r.date.toISOString().slice(0, 10)} ${label(r.type)}${r.provider ? ` by ${r.provider}` : ""}${r.notes ? `: ${r.notes}` : ""}${r.nextDue ? ` (next due ${r.nextDue.toISOString().slice(0, 10)})` : ""}`,
+        `- ${ymd(r.date)} ${label(r.type)}${r.provider ? ` by ${r.provider}` : ""}${r.notes ? `: ${r.notes}` : ""}${r.nextDue ? ` (next due ${ymd(r.nextDue)})` : ""}`,
     )
     .join("\n");
 }
@@ -124,7 +124,7 @@ ${healthFacts(records)}
 
 Feeding plan: ${feed ? `AM ${feed.morning ?? "-"}, midday ${feed.midday ?? "-"}, PM ${feed.evening ?? "-"}, supplements ${feed.supplements ?? "-"}` : "none logged"}
 Recent yard notes: ${recentNotes.length ? recentNotes.join(" | ") : "none"}
-Today: ${new Date().toISOString().slice(0, 10)}
+Today: ${ymd(new Date())}
 
 Look for: overdue vaccinations/worming/dental/farrier, repeated injuries or treatments, weight or appetite changes, feeding that does not match workload, seasonal risks in Egypt (heat stress, dehydration, colic in summer).
 
@@ -145,7 +145,7 @@ function demoHealthRisk(records: Health[]): HealthRisk {
   for (const [t, days] of checks) {
     const r = latest(t);
     if (!r) alerts.push(`No ${label(t).toLowerCase()} on record`);
-    else if (r.nextDue && +r.nextDue < now) alerts.push(`${label(t)} overdue since ${r.nextDue.toISOString().slice(0, 10)}`);
+    else if (r.nextDue && +r.nextDue < now) alerts.push(`${label(t)} overdue since ${ymd(r.nextDue)}`);
     else if (now - +r.date > days * 86_400_000) alerts.push(`${label(t)} last done ${Math.round((now - +r.date) / 86_400_000)} days ago`);
   }
   const injuries = records.filter((r) => r.type === "INJURY" || r.type === "TREATMENT").length;
@@ -209,8 +209,8 @@ export async function smartScan(image: SavedUpload): Promise<ScanResult> {
   if (!aiEnabled()) {
     return {
       type: "VACCINATION",
-      date: new Date().toISOString().slice(0, 10),
-      nextDue: new Date(Date.now() + 365 * 86_400_000).toISOString().slice(0, 10),
+      date: ymd(new Date()),
+      nextDue: ymd(new Date(Date.now() + 365 * 86_400_000)),
       provider: "Demo Vet Clinic",
       cost: 850,
       notes: "Demo mode: sample data. Connect the AI to read real documents in Arabic or English.",
@@ -454,7 +454,7 @@ export async function dailyBriefing(data: {
   return askText({
     system: "You are the yard manager's assistant. Write a short morning briefing in markdown: what to do first, who does what, risks to watch. Max 180 words.",
     prompt: `Yard: ${data.yardName}
-Date: ${new Date().toDateString()}
+Date: ${fmtDate(new Date())}
 Overdue tasks: ${data.overdue.join("; ") || "none"}
 Today's tasks: ${data.tasksToday.join("; ") || "none"}
 Health care due within 7 days: ${data.healthDue.join("; ") || "none"}

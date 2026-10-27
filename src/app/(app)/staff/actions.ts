@@ -6,7 +6,7 @@ import { db, schema } from "@/db";
 import { requireUser } from "@/lib/auth";
 import { suggestRota } from "@/lib/ai/features";
 import type { AiState } from "@/components/ai-panel";
-import { addDays, date, num, str, ymd } from "@/lib/utils";
+import { addDays, date, fmtDate, num, str, ymd, zonedDate } from "@/lib/utils";
 import { DAYS, weekStart } from "./week";
 
 async function ownStaff(staffId: string) {
@@ -36,8 +36,8 @@ export async function addShift(fd: FormData) {
   const start = str(fd, "start") ?? "07:00";
   const end = str(fd, "end") ?? "15:00";
   if (!day) return;
-  const s = new Date(`${day.toISOString().slice(0, 10)}T${start}`);
-  let e = new Date(`${day.toISOString().slice(0, 10)}T${end}`);
+  const s = zonedDate(`${ymd(day)}T${start}`)!;
+  let e = zonedDate(`${ymd(day)}T${end}`)!;
   if (e <= s) e = addDays(e, 1); // night shift crossing midnight
   await db.insert(schema.shifts).values({ ownerId: user.id, staffId: String(fd.get("staffId")), start: s, end: e, note: str(fd, "note") });
   revalidatePath("/staff");
@@ -79,15 +79,15 @@ export async function aiRotaAction(_: AiState, fd: FormData): Promise<AiState> {
         const person = staff.find((s) => s.name.toLowerCase() === sh.staffName.toLowerCase());
         if (!person) return [];
         const d = ymd(addDays(ws, sh.day));
-        const start = new Date(`${d}T${sh.start}`);
-        let end = new Date(`${d}T${sh.end}`);
+        const start = zonedDate(`${d}T${sh.start}`)!;
+        let end = zonedDate(`${d}T${sh.end}`)!;
         if (end <= start) end = addDays(end, 1);
         return [{ ownerId: user.id, staffId: person.id, start, end, note: "AI rota" }];
       });
       if (rows.length) await db.insert(schema.shifts).values(rows);
       revalidatePath("/staff");
     }
-    return { text: `${r.reasoning}\n\n${fd.get("apply") === "on" ? "**Applied to the week of " + ws.toDateString() + ".**\n\n" : ""}${lines.join("\n")}` };
+    return { text: `${r.reasoning}\n\n${fd.get("apply") === "on" ? "**Applied to the week of " + fmtDate(ws) + ".**\n\n" : ""}${lines.join("\n")}` };
   } catch (e) {
     return { error: (e as Error).message };
   }

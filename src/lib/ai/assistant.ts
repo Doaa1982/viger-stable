@@ -4,7 +4,7 @@ import { and, asc, desc, eq, gte, like, lt, lte } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { Content, FunctionDeclaration } from "@google/genai";
 import { ANTHROPIC_MODEL, BASE_SYSTEM, aiEnabled, aiProvider, anthropic, friendlyAiError, geminiGenerate } from "./client";
-import { addDays, egp, fmtDate, fmtDateTime, label, startOfDay } from "@/lib/utils";
+import { addDays, egp, fmtDate, fmtDateTime, fmtTime, label, startOfDay, ymd, ymdhm, zonedDate } from "@/lib/utils";
 
 /**
  * AI Yard Assistant (AI Added Service)
@@ -136,7 +136,7 @@ async function runTool(userId: string, name: string, input: Record<string, unkno
       const st = input.staff_name
         ? await db.query.staff.findFirst({ where: and(eq(schema.staff.ownerId, userId), like(schema.staff.name, `%${input.staff_name}%`)) })
         : null;
-      const due = new Date(String(input.due_date));
+      const due = zonedDate(String(input.due_date)) ?? new Date(NaN);
       const [t] = await db
         .insert(schema.tasks)
         .values({
@@ -176,11 +176,11 @@ async function runTool(userId: string, name: string, input: Record<string, unkno
       await db.insert(schema.healthRecords).values({
         horseId: horse.id,
         type: String(input.type),
-        date: input.date ? new Date(String(input.date)) : new Date(),
+        date: (input.date ? zonedDate(String(input.date)) : null) ?? new Date(),
         notes: String(input.notes),
         provider: (input.provider as string) ?? null,
         cost: (input.cost as number) ?? null,
-        nextDue: input.next_due ? new Date(String(input.next_due)) : null,
+        nextDue: input.next_due ? zonedDate(String(input.next_due)) : null,
         source: "ASSISTANT",
       });
       if (input.cost) {
@@ -210,7 +210,7 @@ Top expenses: ${Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 4).ma
 Unpaid invoices: ${open.length} totalling ${egp(open.reduce((s, i) => s + i.total, 0))}${open.length ? ` - ${open.map((i) => `${i.number} ${i.clientName} ${egp(i.total)} due ${fmtDate(i.dueAt)}`).join("; ")}` : ""}.`;
     }
     case "staff_on_shift": {
-      const d = input.date ? startOfDay(new Date(String(input.date))) : today;
+      const d = input.date ? (zonedDate(String(input.date)) ?? today) : today;
       const rows = await db.query.shifts.findMany({
         where: and(eq(schema.shifts.ownerId, userId), gte(schema.shifts.start, d), lt(schema.shifts.start, addDays(d, 1))),
         with: { staff: true },
@@ -219,7 +219,7 @@ Unpaid invoices: ${open.length} totalling ${egp(open.reduce((s, i) => s + i.tota
       const open = staffIds.length
         ? await db.query.timeEntries.findMany({ with: { staff: true } }).then((all) => all.filter((e) => !e.clockOut && staffIds.includes(e.staffId)))
         : [];
-      return `Rostered: ${rows.map((s) => `${s.staff.name} ${s.start.toTimeString().slice(0, 5)}-${s.end.toTimeString().slice(0, 5)}`).join(", ") || "nobody"}.
+      return `Rostered: ${rows.map((s) => `${s.staff.name} ${fmtTime(s.start)}-${fmtTime(s.end)}`).join(", ") || "nobody"}.
 Clocked in now: ${open.map((e) => e.staff.name).join(", ") || "nobody"}.`;
     }
     default:
@@ -234,7 +234,7 @@ export async function runAssistant(userId: string, yardName: string, history: Ch
 
   const system = `${BASE_SYSTEM}
 
-You are the Yard Assistant for "${yardName}". Today is ${new Date().toDateString()}.
+You are the Yard Assistant for "${yardName}". Today is ${fmtDate(new Date())} (${ymdhm(new Date()).replace("T", " ")} Egypt time). Dates you pass to tools are in Egypt time.
 Use the tools to look up and change yard data - never guess numbers. When the user reports something about a horse (ate poorly, lame, cut leg, vet came), log it with log_health_record and, if useful, create a follow-up task.
 Keep answers short, use bullet points for lists, and confirm what you changed.`;
 

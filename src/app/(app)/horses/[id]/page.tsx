@@ -6,7 +6,7 @@ import { AiPanel } from "@/components/ai-panel";
 import { SubmitButton } from "@/components/client";
 import { Markdown } from "@/components/markdown";
 import { AiTag, Badge, Card, Empty, HorseAvatar, PageHeader, Stars } from "@/components/ui";
-import { age, egp, fmtDate, fmtDateTime, label } from "@/lib/utils";
+import { age, egp, fmtDate, fmtDateTime, fmtTime, label } from "@/lib/utils";
 import { getOwnedHorse } from "../data";
 import { addTrialSlot, deleteTrialSlot, gaitAction, healthRiskAction, listingAction, trainingPlanAction, triageAction, updateListing, valuationAction } from "../actions";
 import { decideTrial } from "../../trials/actions";
@@ -202,7 +202,7 @@ export default async function HorseDetail({ params }: { params: Promise<{ id: st
             <ul className="space-y-1 text-sm">
               {slots.map((s) => (
                 <li key={s.id} className="flex items-center justify-between">
-                  {fmtDateTime(s.start)} - {s.end.toTimeString().slice(0, 5)}
+                  {fmtDateTime(s.start)} - {fmtTime(s.end)}
                   <form action={deleteTrialSlot.bind(null, horse.id, s.id)}><button className="text-xs text-red-600">Remove</button></form>
                 </li>
               ))}

@@ -5,7 +5,7 @@ import { db, schema } from "@/db";
 import { requireUser } from "@/lib/auth";
 import { dailyBriefing } from "@/lib/ai/features";
 import type { AiState } from "@/components/ai-panel";
-import { addDays, label, startOfDay } from "@/lib/utils";
+import { addDays, fmtTime, label, startOfDay, ymd, ymdhm } from "@/lib/utils";
 
 export async function briefingAction(): Promise<AiState> {
   const user = await requireUser();
@@ -34,9 +34,9 @@ export async function briefingAction(): Promise<AiState> {
       yardName: user.name,
       overdue: open.filter((t) => t.dueAt < today).map(fmt),
       tasksToday: open.filter((t) => t.dueAt >= today).map(fmt),
-      healthDue: health.map((h) => `${h.horse} ${label(h.type)} ${h.nextDue && h.nextDue < today ? "OVERDUE" : `due ${h.nextDue?.toISOString().slice(0, 10)}`}`),
-      trials: trials.map((t) => `${t.horse} ${t.date.toISOString().slice(0, 16).replace("T", " ")} (${t.status.toLowerCase()})`),
-      onShift: shifts.map((s) => `${s.staff.name} ${s.start.toTimeString().slice(0, 5)}-${s.end.toTimeString().slice(0, 5)}`),
+      healthDue: health.map((h) => `${h.horse} ${label(h.type)} ${h.nextDue && h.nextDue < today ? "OVERDUE" : `due ${h.nextDue ? ymd(h.nextDue) : "?"}`}`),
+      trials: trials.map((t) => `${t.horse} ${ymdhm(t.date).replace("T", " ")} (${t.status.toLowerCase()})`),
+      onShift: shifts.map((s) => `${s.staff.name} ${fmtTime(s.start)}-${fmtTime(s.end)}`),
     });
     return { text };
   } catch (e) {

@@ -6,7 +6,7 @@ import { db, schema } from "@/db";
 import { requireUser } from "@/lib/auth";
 import { matingAdvisor } from "@/lib/ai/features";
 import type { AiState } from "@/components/ai-panel";
-import { addDays, date, str } from "@/lib/utils";
+import { addDays, date, fmtDate, str } from "@/lib/utils";
 
 const GESTATION_DAYS = 340;
 
@@ -55,7 +55,7 @@ export async function updateBreeding(id: string, fd: FormData) {
       sire: rec.stallionName,
       dam: rec.mare.name,
       damSire: rec.mare.sire,
-      description: `Born ${when.toDateString()}. By ${rec.stallionName}${stallion?.sire ? ` (${stallion.sire})` : ""} out of ${rec.mare.name}.`,
+      description: `Born ${fmtDate(when)}. By ${rec.stallionName}${stallion?.sire ? ` (${stallion.sire})` : ""} out of ${rec.mare.name}.`,
       isPublic: false,
     });
   }

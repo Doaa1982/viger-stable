@@ -1,11 +1,12 @@
 /* Demo data for Viger Stable. Run with: npm run db:seed  (wipes existing data) */
 import bcrypt from "bcryptjs";
 import { db, schema as s } from "./index";
+import { addDays, startOfDay, ymd, zonedDate } from "../lib/utils";
 
-const day = 86_400_000;
-const now = new Date();
-const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-const at = (offsetDays: number, hour = 9, min = 0) => new Date(today.getTime() + offsetDays * day + hour * 3_600_000 + min * 60_000);
+// All demo times are in the stable's time zone (Egypt), wherever the seed is run from
+const today = startOfDay();
+const pad = (n: number) => String(n).padStart(2, "0");
+const at = (offsetDays: number, hour = 9, min = 0) => zonedDate(`${ymd(addDays(today, offsetDays + 0.5))}T${pad(hour)}:${pad(min)}`)!;
 
 async function wipe() {
   const order = [

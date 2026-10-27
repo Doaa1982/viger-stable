@@ -5,7 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { AiPanel } from "@/components/ai-panel";
 import { SubmitButton } from "@/components/client";
 import { AiTag, Badge, Card, Empty, PageHeader, Stat, Tabs } from "@/components/ui";
-import { egp, fmtDate, label } from "@/lib/utils";
+import { egp, fmtDate, label, ymd } from "@/lib/utils";
 import { addClient, addTransaction, createInvoice, deleteTransaction, financeInsightsAction, linkHorseToClient } from "./actions";
 
 const CATEGORIES = ["Feed", "Bedding", "Vet", "Farrier", "Salaries", "Livery", "Lessons", "Sale", "Stud fees", "Prize money", "Transport", "Equipment", "Utilities", "Other"];
@@ -105,7 +105,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
                 <select name="kind" className="input"><option value="EXPENSE">Expense</option><option value="INCOME">Income</option></select>
                 <input name="amount" type="number" step="0.01" className="input" placeholder="Amount (EGP)" required />
                 <select name="category" className="input">{CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select>
-                <input name="date" type="date" className="input" defaultValue={new Date().toISOString().slice(0, 10)} />
+                <input name="date" type="date" className="input" defaultValue={ymd(new Date())} />
               </div>
               <select name="horseId" className="input" defaultValue=""><option value="">No horse</option>{horses.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}</select>
               <input name="description" className="input" placeholder="Description" />
