@@ -3,24 +3,24 @@
 import { revalidatePath } from "next/cache";
 import { and, eq, gte, isNull, lt } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { requireUser } from "@/lib/auth";
+import { requirePerm } from "@/lib/access";
 import { suggestRota } from "@/lib/ai/features";
 import type { AiState } from "@/components/ai-panel";
 import { addDays, date, fmtDate, num, str, ymd, zonedDate } from "@/lib/utils";
 import { DAYS, weekStart } from "./week";
 
 async function ownStaff(staffId: string) {
-  const user = await requireUser();
-  const s = await db.query.staff.findFirst({ where: and(eq(schema.staff.id, staffId), eq(schema.staff.ownerId, user.id)) });
+  const { user, ownerId } = await requirePerm("staffRota");
+  const s = await db.query.staff.findFirst({ where: and(eq(schema.staff.id, staffId), eq(schema.staff.ownerId, ownerId)) });
   if (!s) throw new Error("Staff member not found");
-  return { user, s };
+  return { user, ownerId, s };
 }
 
 export async function addStaff(fd: FormData) {
-  const user = await requireUser();
+  const { user, ownerId } = await requirePerm("staffRota");
   const name = str(fd, "name");
   if (!name) return;
-  await db.insert(schema.staff).values({ ownerId: user.id, name, role: str(fd, "role") ?? "Groom", phone: str(fd, "phone"), skills: str(fd, "skills"), vacationDays: num(fd, "vacationDays") ?? 21 });
+  await db.insert(schema.staff).values({ ownerId: ownerId, name, role: str(fd, "role") ?? "Groom", phone: str(fd, "phone"), skills: str(fd, "skills"), vacationDays: num(fd, "vacationDays") ?? 21 });
   revalidatePath("/staff");
 }
 
@@ -31,7 +31,7 @@ export async function removeStaff(staffId: string) {
 }
 
 export async function addShift(fd: FormData) {
-  const { user } = await ownStaff(String(fd.get("staffId")));
+  const { user, ownerId } = await ownStaff(String(fd.get("staffId")));
   const day = date(fd, "day");
   const start = str(fd, "start") ?? "07:00";
   const end = str(fd, "end") ?? "15:00";
@@ -39,13 +39,13 @@ export async function addShift(fd: FormData) {
   const s = zonedDate(`${ymd(day)}T${start}`)!;
   let e = zonedDate(`${ymd(day)}T${end}`)!;
   if (e <= s) e = addDays(e, 1); // night shift crossing midnight
-  await db.insert(schema.shifts).values({ ownerId: user.id, staffId: String(fd.get("staffId")), start: s, end: e, note: str(fd, "note") });
+  await db.insert(schema.shifts).values({ ownerId: ownerId, staffId: String(fd.get("staffId")), start: s, end: e, note: str(fd, "note") });
   revalidatePath("/staff");
 }
 
 export async function deleteShift(shiftId: string) {
-  const user = await requireUser();
-  await db.delete(schema.shifts).where(and(eq(schema.shifts.id, shiftId), eq(schema.shifts.ownerId, user.id)));
+  const { user, ownerId } = await requirePerm("staffRota");
+  await db.delete(schema.shifts).where(and(eq(schema.shifts.id, shiftId), eq(schema.shifts.ownerId, ownerId)));
   revalidatePath("/staff");
 }
 
@@ -65,16 +65,16 @@ export async function clockOut(staffId: string) {
 /** AI Enhancement: build next week's rota from staff skills and yard size. */
 export async function aiRotaAction(_: AiState, fd: FormData): Promise<AiState> {
   try {
-    const user = await requireUser();
-    const staff = await db.query.staff.findMany({ where: eq(schema.staff.ownerId, user.id) });
+    const { user, ownerId } = await requirePerm("staffRota");
+    const staff = await db.query.staff.findMany({ where: eq(schema.staff.ownerId, ownerId) });
     if (!staff.length) return { error: "Add your staff first." };
-    const horses = await db.query.horses.findMany({ where: eq(schema.horses.ownerId, user.id) });
+    const horses = await db.query.horses.findMany({ where: eq(schema.horses.ownerId, ownerId) });
     const offset = num(fd, "week") ?? 1;
     const ws = weekStart(offset);
     const r = await suggestRota(staff.map((s) => ({ name: s.name, role: s.role, skills: s.skills })), horses.length, str(fd, "notes") ?? "");
     const lines = r.shifts.map((sh) => `- ${DAYS[sh.day] ?? sh.day} · ${sh.staffName} ${sh.start}-${sh.end}`);
     if (fd.get("apply") === "on") {
-      await db.delete(schema.shifts).where(and(eq(schema.shifts.ownerId, user.id), gte(schema.shifts.start, ws), lt(schema.shifts.start, addDays(ws, 7))));
+      await db.delete(schema.shifts).where(and(eq(schema.shifts.ownerId, ownerId), gte(schema.shifts.start, ws), lt(schema.shifts.start, addDays(ws, 7))));
       const rows = r.shifts.flatMap((sh) => {
         const person = staff.find((s) => s.name.toLowerCase() === sh.staffName.toLowerCase());
         if (!person) return [];
@@ -82,7 +82,7 @@ export async function aiRotaAction(_: AiState, fd: FormData): Promise<AiState> {
         const start = zonedDate(`${d}T${sh.start}`)!;
         let end = zonedDate(`${d}T${sh.end}`)!;
         if (end <= start) end = addDays(end, 1);
-        return [{ ownerId: user.id, staffId: person.id, start, end, note: "AI rota" }];
+        return [{ ownerId: ownerId, staffId: person.id, start, end, note: "AI rota" }];
       });
       if (rows.length) await db.insert(schema.shifts).values(rows);
       revalidatePath("/staff");

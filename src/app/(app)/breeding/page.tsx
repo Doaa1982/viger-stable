@@ -1,6 +1,6 @@
 import { asc, desc, eq, inArray } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { requireUser } from "@/lib/auth";
+import { requirePerm } from "@/lib/access";
 import { AiPanel } from "@/components/ai-panel";
 import { SubmitButton } from "@/components/client";
 import { AiTag, Card, Empty, PageHeader } from "@/components/ui";
@@ -18,8 +18,8 @@ function sharedAncestors(a: { sire: string | null; dam: string | null; damSire: 
 }
 
 export default async function BreedingPage() {
-  const user = await requireUser();
-  const mares = await db.query.horses.findMany({ where: eq(schema.horses.ownerId, user.id), orderBy: asc(schema.horses.name) }).then((h) => h.filter((x) => x.sex === "MARE"));
+  const { user, ownerId } = await requirePerm("breeding");
+  const mares = await db.query.horses.findMany({ where: eq(schema.horses.ownerId, ownerId), orderBy: asc(schema.horses.name) }).then((h) => h.filter((x) => x.sex === "MARE"));
   const records = mares.length
     ? await db.query.breedingRecords.findMany({ where: inArray(schema.breedingRecords.mareId, mares.map((m) => m.id)), with: { mare: true }, orderBy: desc(schema.breedingRecords.createdAt) })
     : [];

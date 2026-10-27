@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, gte, lt } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { requireUser } from "@/lib/auth";
+import { requirePerm } from "@/lib/access";
 import { SubmitButton } from "@/components/client";
 import { Badge, Card, Empty, PageHeader, Tabs } from "@/components/ui";
 import { addDays, cn, fmtDateTime, label, startOfDay } from "@/lib/utils";
@@ -20,10 +20,10 @@ function waLink(phone: string | null, text: string) {
 }
 
 export default async function TasksPage({ searchParams }: { searchParams: Promise<{ view?: string; cat?: string }> }) {
-  const user = await requireUser();
+  const { user, ownerId } = await requirePerm("yard");
   const { view = "today", cat } = await searchParams;
   const today = startOfDay();
-  const base = eq(schema.tasks.ownerId, user.id);
+  const base = eq(schema.tasks.ownerId, ownerId);
   const where =
     view === "today"
       ? and(base, gte(schema.tasks.dueAt, today), lt(schema.tasks.dueAt, addDays(today, 1)))
@@ -40,8 +40,8 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   });
   if (cat) tasks = tasks.filter((t) => t.category === cat);
   const [horses, staff] = await Promise.all([
-    db.query.horses.findMany({ where: eq(schema.horses.ownerId, user.id), orderBy: asc(schema.horses.name) }),
-    db.query.staff.findMany({ where: eq(schema.staff.ownerId, user.id), orderBy: asc(schema.staff.name) }),
+    db.query.horses.findMany({ where: eq(schema.horses.ownerId, ownerId), orderBy: asc(schema.horses.name) }),
+    db.query.staff.findMany({ where: eq(schema.staff.ownerId, ownerId), orderBy: asc(schema.staff.name) }),
   ]);
   const q = (v: string, c?: string) => `/tasks?view=${v}${c ? `&cat=${c}` : ""}`;
 

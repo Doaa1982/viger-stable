@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { and, asc, desc, eq, gte } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { requireUser } from "@/lib/auth";
+import { requirePerm } from "@/lib/access";
 import { AiPanel } from "@/components/ai-panel";
 import { SubmitButton } from "@/components/client";
 import { AiTag, Badge, Card, Empty, PageHeader, Stat, Tabs } from "@/components/ui";
@@ -12,15 +12,15 @@ const CATEGORIES = ["Feed", "Bedding", "Vet", "Farrier", "Salaries", "Livery", "
 const statusTone = (s: string) => (s === "PAID" ? "green" : s === "OVERDUE" ? "red" : s === "SENT" ? "blue" : "gray");
 
 export default async function FinancePage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
-  const user = await requireUser();
+  const { user, ownerId } = await requirePerm("finance");
   const { tab = "overview" } = await searchParams;
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const [tx, invoices, clients, horses] = await Promise.all([
-    db.query.transactions.findMany({ where: eq(schema.transactions.ownerId, user.id), with: { horse: true }, orderBy: desc(schema.transactions.date) }),
-    db.query.invoices.findMany({ where: eq(schema.invoices.ownerId, user.id), orderBy: desc(schema.invoices.issuedAt) }),
-    db.query.clients.findMany({ where: eq(schema.clients.ownerId, user.id), with: { horses: true }, orderBy: asc(schema.clients.name) }),
-    db.query.horses.findMany({ where: eq(schema.horses.ownerId, user.id), orderBy: asc(schema.horses.name) }),
+    db.query.transactions.findMany({ where: eq(schema.transactions.ownerId, ownerId), with: { horse: true }, orderBy: desc(schema.transactions.date) }),
+    db.query.invoices.findMany({ where: eq(schema.invoices.ownerId, ownerId), orderBy: desc(schema.invoices.issuedAt) }),
+    db.query.clients.findMany({ where: eq(schema.clients.ownerId, ownerId), with: { horses: true }, orderBy: asc(schema.clients.name) }),
+    db.query.horses.findMany({ where: eq(schema.horses.ownerId, ownerId), orderBy: asc(schema.horses.name) }),
   ]);
   const month = tx.filter((t) => t.date >= monthStart);
   const income = month.filter((t) => t.kind === "INCOME").reduce((s, t) => s + t.amount, 0);

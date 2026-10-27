@@ -3,14 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { requireUser } from "@/lib/auth";
+import { requirePerm } from "@/lib/access";
 import { generateFeedPlan } from "@/lib/ai/features";
 import type { AiState } from "@/components/ai-panel";
 import { str } from "@/lib/utils";
 
 async function ownHorse(horseId: string) {
-  const user = await requireUser();
-  const h = await db.query.horses.findFirst({ where: and(eq(schema.horses.id, horseId), eq(schema.horses.ownerId, user.id)) });
+  const { user, ownerId } = await requirePerm("yard");
+  const h = await db.query.horses.findFirst({ where: and(eq(schema.horses.id, horseId), eq(schema.horses.ownerId, ownerId)) });
   if (!h) throw new Error("Horse not found");
   return h;
 }

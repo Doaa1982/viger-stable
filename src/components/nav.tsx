@@ -37,7 +37,7 @@ export function Sidebar({ groups, userName, role, aiOn, logout }: { groups: NavG
           ))}
           <div className="border-t border-stone-100 px-2 pt-4 text-xs text-stone-500">
             <div className="font-medium text-stone-700">{userName}</div>
-            <div>{role.charAt(0) + role.slice(1).toLowerCase()} account</div>
+            <div>{role}</div>
             <div className={cn("mt-2 inline-block rounded px-1.5 py-0.5", aiOn ? "bg-violet-100 text-violet-800" : "bg-amber-100 text-amber-800")}>
               {aiOn ? "✦ AI connected" : "AI demo mode"}
             </div>

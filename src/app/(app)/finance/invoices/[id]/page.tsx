@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { requireUser } from "@/lib/auth";
+import { requirePerm } from "@/lib/access";
 import { Badge } from "@/components/ui";
 import { egp, fmtDate, label } from "@/lib/utils";
 import { setInvoiceStatus } from "../../actions";
@@ -12,8 +12,8 @@ type Item = { description: string; quantity: number; unitPrice: number };
 
 export default async function InvoicePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const user = await requireUser();
-  const inv = await db.query.invoices.findFirst({ where: and(eq(schema.invoices.id, id), eq(schema.invoices.ownerId, user.id)), with: { client: true } });
+  const { user, ownerId } = await requirePerm("finance");
+  const inv = await db.query.invoices.findFirst({ where: and(eq(schema.invoices.id, id), eq(schema.invoices.ownerId, ownerId)), with: { client: true } });
   if (!inv) notFound();
   const items = JSON.parse(inv.items) as Item[];
   const phone = inv.client?.phone?.replace(/\D/g, "");

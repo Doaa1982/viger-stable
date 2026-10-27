@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { and, desc, eq } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { requireUser } from "@/lib/auth";
+import { requirePerm } from "@/lib/access";
 import { saveImage } from "@/lib/uploads";
 import { gaitAnalysis, healthRiskCheck, scanPassport, symptomTriage, trainingPlan, valuateHorse, writeListing, type PassportScan } from "@/lib/ai/features";
 import type { AiState } from "@/components/ai-panel";
@@ -34,19 +34,19 @@ function horseFields(fd: FormData) {
 }
 
 export async function createHorse(fd: FormData) {
-  const user = await requireUser();
+  const { user, ownerId } = await requirePerm("horsesEdit");
   const photo = await saveImage(fd.get("photo") as File | null);
   const [h] = await db
     .insert(schema.horses)
-    .values({ ...horseFields(fd), ownerId: user.id, photoUrl: photo?.url ?? null })
+    .values({ ...horseFields(fd), ownerId: ownerId, photoUrl: photo?.url ?? null })
     .returning();
   revalidatePath("/horses");
   redirect(`/horses/${h.id}`);
 }
 
 export async function updateHorse(id: string, fd: FormData) {
-  const user = await requireUser();
-  await getOwnedHorse(user, id);
+  const { user, ownerId } = await requirePerm("horsesEdit");
+  await getOwnedHorse(ownerId, id);
   const photo = await saveImage(fd.get("photo") as File | null);
   await db
     .update(schema.horses)
@@ -57,16 +57,16 @@ export async function updateHorse(id: string, fd: FormData) {
 }
 
 export async function deleteHorse(id: string) {
-  const user = await requireUser();
-  await getOwnedHorse(user, id);
+  const { user, ownerId } = await requirePerm("horsesEdit");
+  await getOwnedHorse(ownerId, id);
   await db.delete(schema.horses).where(eq(schema.horses.id, id));
   revalidatePath("/horses");
   redirect("/horses");
 }
 
 export async function updateListing(id: string, fd: FormData) {
-  const user = await requireUser();
-  await getOwnedHorse(user, id);
+  const { user, ownerId } = await requirePerm("horsesEdit");
+  await getOwnedHorse(ownerId, id);
   await db
     .update(schema.horses)
     .set({
@@ -81,8 +81,8 @@ export async function updateListing(id: string, fd: FormData) {
 }
 
 export async function addTrialSlot(id: string, fd: FormData) {
-  const user = await requireUser();
-  await getOwnedHorse(user, id);
+  const { user, ownerId } = await requirePerm("horsesEdit");
+  await getOwnedHorse(ownerId, id);
   const start = date(fd, "start");
   const hours = num(fd, "hours") ?? 2;
   if (!start) return;
@@ -91,8 +91,8 @@ export async function addTrialSlot(id: string, fd: FormData) {
 }
 
 export async function deleteTrialSlot(horseId: string, slotId: string) {
-  const user = await requireUser();
-  await getOwnedHorse(user, horseId);
+  const { user, ownerId } = await requirePerm("horsesEdit");
+  await getOwnedHorse(ownerId, horseId);
   await db.delete(schema.trialSlots).where(and(eq(schema.trialSlots.id, slotId), eq(schema.trialSlots.horseId, horseId)));
   revalidatePath(`/horses/${horseId}`);
 }
@@ -101,8 +101,8 @@ export async function deleteTrialSlot(horseId: string, slotId: string) {
 
 export async function valuationAction(_: AiState, fd: FormData): Promise<AiState> {
   try {
-    const user = await requireUser();
-    const horse = await getOwnedHorse(user, String(fd.get("horseId")));
+    const { user, ownerId } = await requirePerm("yard");
+    const horse = await getOwnedHorse(ownerId, String(fd.get("horseId")));
     const records = await db.query.healthRecords.findMany({ where: eq(schema.healthRecords.horseId, horse.id), orderBy: desc(schema.healthRecords.date) });
     const v = await valuateHorse(horse, records);
     await db.update(schema.horses).set({ aiValuationLow: v.low, aiValuationHigh: v.high }).where(eq(schema.horses.id, horse.id));
@@ -125,8 +125,8 @@ function starsFor(price: number) {
 
 export async function healthRiskAction(_: AiState, fd: FormData): Promise<AiState> {
   try {
-    const user = await requireUser();
-    const horse = await getOwnedHorse(user, String(fd.get("horseId")));
+    const { user, ownerId } = await requirePerm("yard");
+    const horse = await getOwnedHorse(ownerId, String(fd.get("horseId")));
     const records = await db.query.healthRecords.findMany({ where: eq(schema.healthRecords.horseId, horse.id), orderBy: desc(schema.healthRecords.date) });
     const feed = await db.query.feedPlans.findFirst({ where: and(eq(schema.feedPlans.horseId, horse.id), eq(schema.feedPlans.active, true)) });
     const notes = str(fd, "notes");
@@ -142,8 +142,8 @@ export async function healthRiskAction(_: AiState, fd: FormData): Promise<AiStat
 
 export async function listingAction(_: AiState, fd: FormData): Promise<AiState> {
   try {
-    const user = await requireUser();
-    const horse = await getOwnedHorse(user, String(fd.get("horseId")));
+    const { user, ownerId } = await requirePerm("yard");
+    const horse = await getOwnedHorse(ownerId, String(fd.get("horseId")));
     const l = await writeListing(horse);
     if (fd.get("apply") === "on") {
       await db.update(schema.horses).set({ description: l.description }).where(eq(schema.horses.id, horse.id));
@@ -157,8 +157,8 @@ export async function listingAction(_: AiState, fd: FormData): Promise<AiState> 
 
 export async function gaitAction(_: AiState, fd: FormData): Promise<AiState> {
   try {
-    const user = await requireUser();
-    const horse = await getOwnedHorse(user, String(fd.get("horseId")));
+    const { user, ownerId } = await requirePerm("yard");
+    const horse = await getOwnedHorse(ownerId, String(fd.get("horseId")));
     const files = fd.getAll("frames").filter((f): f is File => f instanceof File && f.size > 0).slice(0, 4);
     if (!files.length) return { error: "Upload 1-4 photos or video frames of the horse moving." };
     const frames = (await Promise.all(files.map((f) => saveImage(f)))).filter((x) => x !== null);
@@ -175,7 +175,7 @@ export type ScanState = { data?: PassportScan; error?: string } | undefined;
 
 export async function scanPassportAction(_: ScanState, fd: FormData): Promise<ScanState> {
   try {
-    await requireUser();
+    await requirePerm("horsesEdit");
     const files = fd.getAll("pages").filter((f): f is File => f instanceof File && f.size > 0).slice(0, 4);
     if (!files.length) return { error: "Choose one or more photos of the passport pages." };
     const pages = (await Promise.all(files.map((f) => saveImage(f)))).filter((x) => x !== null);
@@ -187,8 +187,8 @@ export async function scanPassportAction(_: ScanState, fd: FormData): Promise<Sc
 
 export async function triageAction(_: AiState, fd: FormData): Promise<AiState> {
   try {
-    const user = await requireUser();
-    const horse = await getOwnedHorse(user, String(fd.get("horseId")));
+    const { user, ownerId } = await requirePerm("yard");
+    const horse = await getOwnedHorse(ownerId, String(fd.get("horseId")));
     const description = str(fd, "description");
     if (!description) return { error: "Describe what you see." };
     const files = fd.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0).slice(0, 3);
@@ -207,8 +207,8 @@ export async function triageAction(_: AiState, fd: FormData): Promise<AiState> {
 
 export async function trainingPlanAction(_: AiState, fd: FormData): Promise<AiState> {
   try {
-    const user = await requireUser();
-    const horse = await getOwnedHorse(user, String(fd.get("horseId")));
+    const { user, ownerId } = await requirePerm("yard");
+    const horse = await getOwnedHorse(ownerId, String(fd.get("horseId")));
     const gait = await db.query.gaitAnalyses.findFirst({ where: eq(schema.gaitAnalyses.horseId, horse.id), orderBy: desc(schema.gaitAnalyses.createdAt) });
     const notes = [str(fd, "notes"), gait ? `Latest gait analysis: ${gait.result.slice(0, 600)}` : null].filter(Boolean).join("\n");
     return { text: await trainingPlan(horse, str(fd, "goal") ?? "", num(fd, "days") ?? 5, notes) };

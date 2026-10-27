@@ -426,6 +426,87 @@ export const customerBookings = sqliteTable("customer_bookings", {
   createdAt: createdAt(),
 });
 
+// ─────────────────────────── Team, riders & accounts ───────────────────────────
+
+/**
+ * A person's role at a stable. Staff (manager, coach, groom, staff rider) and riders
+ * (students, customers, horse owners) all have a membership. `userId` is filled once
+ * they accept an invite or sign up. Links connect the membership to existing records.
+ */
+export const memberships = sqliteTable("memberships", {
+  id: id(),
+  ownerId: text("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }), // the stable
+  userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
+  role: text("role").notNull(), // enum: MANAGER | COACH | GROOM | STAFF_RIDER | STUDENT | CUSTOMER | HORSE_OWNER
+  name: text("name").notNull(),
+  phone: text("phone"),
+  email: text("email"),
+  status: text("status").notNull().default("INVITED"), // enum: INVITED | PENDING | ACTIVE | DISABLED
+  inviteToken: text("invite_token").unique(),
+  inviteExpires: ts("invite_expires"),
+  staffId: text("staff_id").references(() => staff.id, { onDelete: "set null" }), // staff roles
+  clientId: text("client_id").references(() => clients.id, { onDelete: "set null" }), // horse owners
+  studentId: text("student_id").references(() => students.id, { onDelete: "set null" }), // students
+  createdAt: createdAt(),
+});
+
+/** Riding school students (with or without an account). */
+export const students = sqliteTable("students", {
+  id: id(),
+  ownerId: text("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  phone: text("phone"),
+  email: text("email"),
+  guardianName: text("guardian_name"), // for children
+  birthYear: integer("birth_year"),
+  level: text("level").notNull().default("BEGINNER"), // enum: BEGINNER | NOVICE | INTERMEDIATE | ADVANCED
+  goals: text("goals"),
+  coachStaffId: text("coach_staff_id").references(() => staff.id, { onDelete: "set null" }),
+  notes: text("notes"),
+  active: bool("active").notNull().default(true),
+  createdAt: createdAt(),
+});
+
+export const lessonPackages = sqliteTable("lesson_packages", {
+  id: id(),
+  studentId: text("student_id").notNull().references(() => students.id, { onDelete: "cascade" }),
+  name: text("name").notNull(), // e.g. "10 beginner lessons"
+  lessonsTotal: integer("lessons_total").notNull(),
+  priceEgp: real("price_egp").notNull(),
+  paid: bool("paid").notNull().default(false),
+  purchasedAt: ts("purchased_at").notNull(),
+  expiresAt: ts("expires_at"),
+});
+
+export const lessons = sqliteTable("lessons", {
+  id: id(),
+  studentId: text("student_id").notNull().references(() => students.id, { onDelete: "cascade" }),
+  packageId: text("package_id").references(() => lessonPackages.id, { onDelete: "set null" }),
+  coachStaffId: text("coach_staff_id").references(() => staff.id, { onDelete: "set null" }),
+  horseId: text("horse_id").references(() => horses.id, { onDelete: "set null" }),
+  date: ts("date").notNull(),
+  durationMin: integer("duration_min").notNull().default(45),
+  status: text("status").notNull().default("SCHEDULED"), // enum: SCHEDULED | ATTENDED | NO_SHOW | CANCELLED
+  focus: text("focus"), // what the lesson works on
+  coachNotes: text("coach_notes"),
+  rating: integer("rating"), // 1-5 progress in this lesson
+  createdAt: createdAt(),
+});
+
+/** Reviews left by customers after a completed booking. */
+export const reviews = sqliteTable("reviews", {
+  id: id(),
+  ownerId: text("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  bookingId: text("booking_id").references(() => customerBookings.id, { onDelete: "set null" }),
+  userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
+  authorName: text("author_name").notNull(),
+  country: text("country"),
+  rating: integer("rating").notNull(), // 1-5
+  comment: text("comment"),
+  published: bool("published").notNull().default(true),
+  createdAt: createdAt(),
+});
+
 // ─────────────────────────── Relations ───────────────────────────
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -562,4 +643,29 @@ export const servicesRelations = relations(services, ({ many }) => ({
 
 export const customerBookingsRelations = relations(customerBookings, ({ one }) => ({
   service: one(services, { fields: [customerBookings.serviceId], references: [services.id] }),
+}));
+
+export const membershipsRelations = relations(memberships, ({ one }) => ({
+  user: one(users, { fields: [memberships.userId], references: [users.id] }),
+  staff: one(staff, { fields: [memberships.staffId], references: [staff.id] }),
+  client: one(clients, { fields: [memberships.clientId], references: [clients.id] }),
+  student: one(students, { fields: [memberships.studentId], references: [students.id] }),
+}));
+
+export const studentsRelations = relations(students, ({ one, many }) => ({
+  coach: one(staff, { fields: [students.coachStaffId], references: [staff.id] }),
+  packages: many(lessonPackages),
+  lessons: many(lessons),
+}));
+
+export const lessonPackagesRelations = relations(lessonPackages, ({ one, many }) => ({
+  student: one(students, { fields: [lessonPackages.studentId], references: [students.id] }),
+  lessons: many(lessons),
+}));
+
+export const lessonsRelations = relations(lessons, ({ one }) => ({
+  student: one(students, { fields: [lessons.studentId], references: [students.id] }),
+  package: one(lessonPackages, { fields: [lessons.packageId], references: [lessonPackages.id] }),
+  coach: one(staff, { fields: [lessons.coachStaffId], references: [staff.id] }),
+  horse: one(horses, { fields: [lessons.horseId], references: [horses.id] }),
 }));

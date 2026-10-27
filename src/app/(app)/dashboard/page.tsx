@@ -1,52 +1,54 @@
 import Link from "next/link";
 import { and, asc, desc, eq, gte, lt, lte, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { requireUser } from "@/lib/auth";
+import { ROLE_LABEL, getAccess, homeFor } from "@/lib/access";
+import { redirect } from "next/navigation";
 import { AiPanel } from "@/components/ai-panel";
 import { AiTag, Badge, Card, Empty, PageHeader, Stat } from "@/components/ui";
 import { addDays, egp, fmtDate, fmtDateTime, fmtTime, label, startOfDay } from "@/lib/utils";
 import { briefingAction } from "./actions";
 
 export default async function Dashboard() {
-  const user = await requireUser();
+  const { user, ownerId, role, can, stableName } = await getAccess();
+  if (homeFor(role) === "/me") redirect("/me");
   const today = startOfDay();
 
-  if (user.role === "PROFESSIONAL") return <ProDashboard userId={user.id} name={user.name} />;
-  if (user.role === "FAN") return <FanDashboard name={user.name} />;
+  if (user.role === "PROFESSIONAL" && role === "OWNER") return <ProDashboard userId={user.id} name={user.name} />;
+  if (user.role === "FAN" && role === "OWNER") return <FanDashboard name={user.name} />;
 
-  const [horseCount] = await db.select({ n: sql<number>`count(*)` }).from(schema.horses).where(eq(schema.horses.ownerId, user.id));
+  const [horseCount] = await db.select({ n: sql<number>`count(*)` }).from(schema.horses).where(eq(schema.horses.ownerId, ownerId));
   const todayTasks = await db.query.tasks.findMany({
-    where: and(eq(schema.tasks.ownerId, user.id), gte(schema.tasks.dueAt, today), lt(schema.tasks.dueAt, addDays(today, 1))),
+    where: and(eq(schema.tasks.ownerId, ownerId), gte(schema.tasks.dueAt, today), lt(schema.tasks.dueAt, addDays(today, 1))),
     with: { horse: true, staff: true },
     orderBy: [asc(schema.tasks.done), asc(schema.tasks.priority), asc(schema.tasks.dueAt)],
   });
   const overdue = await db.query.tasks.findMany({
-    where: and(eq(schema.tasks.ownerId, user.id), eq(schema.tasks.done, false), lt(schema.tasks.dueAt, today)),
+    where: and(eq(schema.tasks.ownerId, ownerId), eq(schema.tasks.done, false), lt(schema.tasks.dueAt, today)),
     with: { horse: true },
   });
   const healthDue = await db
     .select({ id: schema.healthRecords.id, horse: schema.horses.name, horseId: schema.horses.id, type: schema.healthRecords.type, nextDue: schema.healthRecords.nextDue })
     .from(schema.healthRecords)
     .innerJoin(schema.horses, eq(schema.horses.id, schema.healthRecords.horseId))
-    .where(and(eq(schema.horses.ownerId, user.id), lte(schema.healthRecords.nextDue, addDays(today, 14))))
+    .where(and(eq(schema.horses.ownerId, ownerId), lte(schema.healthRecords.nextDue, addDays(today, 14))))
     .orderBy(asc(schema.healthRecords.nextDue));
   const pendingTrials = await db
     .select({ id: schema.trialRequests.id })
     .from(schema.trialRequests)
     .innerJoin(schema.horses, eq(schema.horses.id, schema.trialRequests.horseId))
-    .where(and(eq(schema.horses.ownerId, user.id), eq(schema.trialRequests.status, "PENDING")));
+    .where(and(eq(schema.horses.ownerId, ownerId), eq(schema.trialRequests.status, "PENDING")));
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-  const tx = await db.query.transactions.findMany({ where: and(eq(schema.transactions.ownerId, user.id), gte(schema.transactions.date, monthStart)) });
+  const tx = await db.query.transactions.findMany({ where: and(eq(schema.transactions.ownerId, ownerId), gte(schema.transactions.date, monthStart)) });
   const net = tx.reduce((s, t) => s + (t.kind === "INCOME" ? t.amount : -t.amount), 0);
   const customer = await db.query.customerBookings.findMany({
-    where: and(eq(schema.customerBookings.ownerId, user.id), gte(schema.customerBookings.date, today)),
+    where: and(eq(schema.customerBookings.ownerId, ownerId), gte(schema.customerBookings.date, today)),
     orderBy: asc(schema.customerBookings.date),
     limit: 50,
   });
   const customerUpcoming = customer.filter((b) => b.status !== "CANCELLED").slice(0, 5);
   const customerRequests = customer.filter((b) => b.status === "REQUESTED").length;
   const upcomingBookings = await db.query.bookings.findMany({
-    where: and(eq(schema.bookings.clientId, user.id), gte(schema.bookings.date, today)),
+    where: and(eq(schema.bookings.clientId, ownerId), gte(schema.bookings.date, today)),
     with: { pro: true, horse: true },
     orderBy: asc(schema.bookings.date),
     limit: 4,
@@ -54,20 +56,22 @@ export default async function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={`Good ${new Date().getHours() < 12 ? "morning" : "afternoon"}, ${user.name}`} subtitle={fmtDate(new Date())} />
+      <PageHeader title={`Good ${Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: "Africa/Cairo" }).format(new Date())) < 12 ? "morning" : "afternoon"}, ${user.name}`} subtitle={role !== "OWNER" ? `${stableName} · ${ROLE_LABEL[role]} · ${fmtDate(new Date())}` : fmtDate(new Date())} />
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+      <div className={`grid grid-cols-2 gap-4 ${can("finance") ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
         <Stat label="Horses" value={horseCount.n} />
         <Stat label="Tasks today" value={`${todayTasks.filter((t) => t.done).length}/${todayTasks.length}`} hint="done" />
         <Stat label="Overdue" value={overdue.length} tone={overdue.length ? "warn" : "good"} />
         <Stat label="Trial requests" value={pendingTrials.length} hint="waiting for you" />
-        <Stat label="Net this month" value={egp(net)} tone={net >= 0 ? "good" : "warn"} />
+        {can("finance") && <Stat label="Net this month" value={egp(net)} tone={net >= 0 ? "good" : "warn"} />}
       </div>
 
-      <Card title={<span className="flex items-center gap-2">Daily briefing <AiTag /></span>}>
+      {can("assistant") && (
+        <Card title={<span className="flex items-center gap-2">Daily briefing <AiTag /></span>}>
         <p className="mb-3 text-sm text-stone-500">The AI reads your tasks, health calendar, trials and rota and writes today&apos;s plan.</p>
         <AiPanel action={briefingAction} button="Write today's briefing" />
       </Card>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card title="Today" actions={<Link href="/tasks" className="link text-sm">All tasks →</Link>}>
@@ -109,7 +113,8 @@ export default async function Dashboard() {
           )}
         </Card>
 
-        <Card title={<span className="flex items-center gap-2">Customer bookings {customerRequests > 0 && <Badge tone="amber">{customerRequests} new</Badge>}</span>} actions={<Link href="/customer-bookings" className="link text-sm">All →</Link>}>
+        {can("customerBookings") && (
+          <Card title={<span className="flex items-center gap-2">Customer bookings {customerRequests > 0 && <Badge tone="amber">{customerRequests} new</Badge>}</span>} actions={<Link href="/customer-bookings" className="link text-sm">All →</Link>}>
           {customerUpcoming.length === 0 ? (
             <Empty action={<Link href="/booking-page" className="btn-secondary btn-sm">Set up booking page</Link>}>No upcoming customer bookings.</Empty>
           ) : (
@@ -123,6 +128,7 @@ export default async function Dashboard() {
             </ul>
           )}
         </Card>
+        )}
 
         <Card title="Professional visits" actions={<Link href="/bookings" className="link text-sm">Bookings →</Link>}>
           {upcomingBookings.length === 0 ? (
@@ -139,7 +145,8 @@ export default async function Dashboard() {
           )}
         </Card>
 
-        <Card title="Ask the AI Assistant" actions={<AiTag kind="added" />}>
+        {can("assistant") && (
+          <Card title="Ask the AI Assistant" actions={<AiTag kind="added" />}>
           <p className="text-sm text-stone-600">Ask questions or report updates in plain words. For example:</p>
           <ul className="mt-2 space-y-1 text-sm text-stone-600">
             <li>“Which vaccinations are due this month?”</li>
@@ -148,6 +155,7 @@ export default async function Dashboard() {
           </ul>
           <Link href="/assistant" className="btn-ai mt-4">✦ Open assistant</Link>
         </Card>
+        )}
       </div>
     </div>
   );

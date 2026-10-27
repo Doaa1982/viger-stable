@@ -1,6 +1,6 @@
 import { asc, eq, inArray } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { requireUser } from "@/lib/auth";
+import { requirePerm } from "@/lib/access";
 import { AiPanel } from "@/components/ai-panel";
 import { SubmitButton } from "@/components/client";
 import { AiTag, Card, PageHeader } from "@/components/ui";
@@ -9,9 +9,9 @@ import { addConflict, addStall, aiTurnoutAction, deleteConflict, deleteStall } f
 import { AssignForm } from "./assign-form";
 
 export default async function YardBoard() {
-  const user = await requireUser();
-  const stalls = await db.query.stalls.findMany({ where: eq(schema.stalls.ownerId, user.id), with: { horses: true }, orderBy: [asc(schema.stalls.building), asc(schema.stalls.name)] });
-  const horses = await db.query.horses.findMany({ where: eq(schema.horses.ownerId, user.id), orderBy: asc(schema.horses.name) });
+  const { user, ownerId } = await requirePerm("yard");
+  const stalls = await db.query.stalls.findMany({ where: eq(schema.stalls.ownerId, ownerId), with: { horses: true }, orderBy: [asc(schema.stalls.building), asc(schema.stalls.name)] });
+  const horses = await db.query.horses.findMany({ where: eq(schema.horses.ownerId, ownerId), orderBy: asc(schema.horses.name) });
   const ids = horses.map((h) => h.id);
   const conflicts = ids.length ? await db.query.horseConflicts.findMany({ where: inArray(schema.horseConflicts.horseAId, ids), with: { horseA: true, horseB: true } }) : [];
   const unassigned = horses.filter((h) => !h.stallId);

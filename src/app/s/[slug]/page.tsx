@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { getBookingPage } from "./data";
 import { CATEGORY_LABEL, PRICE_UNIT_LABEL, SERVICE_CATEGORIES, priceUsd } from "@/lib/booking";
+import { and, desc, eq } from "drizzle-orm";
+import { db, schema } from "@/db";
 import { egp } from "@/lib/utils";
 
 function duration(min: number | null) {
@@ -11,6 +13,12 @@ function duration(min: number | null) {
 export default async function PublicStablePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const { settings, services } = await getBookingPage(slug);
+  const reviews = await db.query.reviews.findMany({
+    where: and(eq(schema.reviews.ownerId, settings.ownerId), eq(schema.reviews.published, true)),
+    orderBy: desc(schema.reviews.createdAt),
+    limit: 6,
+  });
+  const avg = reviews.length ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : 0;
   const groups = SERVICE_CATEGORIES.map((c) => ({ c, items: services.filter((s) => s.category === c) })).filter((g) => g.items.length);
 
   return (
@@ -56,6 +64,21 @@ export default async function PublicStablePage({ params }: { params: Promise<{ s
           </div>
         </section>
       ))}
+
+      {reviews.length > 0 && (
+        <section>
+          <h2 className="mb-4 text-xl font-bold">What riders say <span className="text-base font-normal text-amber-500">{"★".repeat(Math.round(avg))}</span> <span className="text-sm font-normal text-stone-500">{avg.toFixed(1)} from {reviews.length} review{reviews.length === 1 ? "" : "s"}</span></h2>
+          <div className="grid gap-4 md:grid-cols-3">
+            {reviews.map((r) => (
+              <figure key={r.id} className="card">
+                <div className="text-amber-500">{"★".repeat(r.rating)}<span className="text-stone-300">{"★".repeat(5 - r.rating)}</span></div>
+                {r.comment && <blockquote className="mt-2 text-sm text-stone-700">&ldquo;{r.comment}&rdquo;</blockquote>}
+                <figcaption className="mt-3 text-xs text-stone-500">{r.authorName.split(" ")[0]}{r.country && ` · ${r.country}`}</figcaption>
+              </figure>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

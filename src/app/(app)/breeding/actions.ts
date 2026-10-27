@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { and, eq, or } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { requireUser } from "@/lib/auth";
+import { requirePerm } from "@/lib/access";
 import { matingAdvisor } from "@/lib/ai/features";
 import type { AiState } from "@/components/ai-panel";
 import { addDays, date, fmtDate, str } from "@/lib/utils";
@@ -11,14 +11,14 @@ import { addDays, date, fmtDate, str } from "@/lib/utils";
 const GESTATION_DAYS = 340;
 
 async function ownMare(mareId: string) {
-  const user = await requireUser();
-  const mare = await db.query.horses.findFirst({ where: and(eq(schema.horses.id, mareId), eq(schema.horses.ownerId, user.id)) });
+  const { user, ownerId } = await requirePerm("breeding");
+  const mare = await db.query.horses.findFirst({ where: and(eq(schema.horses.id, mareId), eq(schema.horses.ownerId, ownerId)) });
   if (!mare) throw new Error("Mare not found");
-  return { user, mare };
+  return { user, ownerId, mare };
 }
 
 export async function addBreeding(fd: FormData) {
-  const { mare } = await ownMare(String(fd.get("mareId")));
+  const { ownerId, mare } = await ownMare(String(fd.get("mareId")));
   const stallionName = str(fd, "stallionName");
   if (!stallionName) return;
   const coverDate = date(fd, "coverDate");
@@ -34,9 +34,9 @@ export async function addBreeding(fd: FormData) {
 }
 
 export async function updateBreeding(id: string, fd: FormData) {
-  const user = await requireUser();
+  const { user, ownerId } = await requirePerm("breeding");
   const rec = await db.query.breedingRecords.findFirst({ where: eq(schema.breedingRecords.id, id), with: { mare: true } });
-  if (!rec || rec.mare.ownerId !== user.id) return;
+  if (!rec || rec.mare.ownerId !== ownerId) return;
   const status = str(fd, "status") ?? rec.status;
   const when = date(fd, "date") ?? new Date();
   const patch: Partial<typeof schema.breedingRecords.$inferInsert> = { status };
@@ -47,7 +47,7 @@ export async function updateBreeding(id: string, fd: FormData) {
     // Auto-create the foal's profile with its pedigree
     const stallion = await db.query.horses.findFirst({ where: eq(schema.horses.name, rec.stallionName) });
     await db.insert(schema.horses).values({
-      ownerId: user.id,
+      ownerId: ownerId,
       name: str(fd, "foalName") ?? `${rec.mare.name} foal ${when.getFullYear()}`,
       sex: str(fd, "foalSex"),
       breed: rec.mare.breed,
@@ -65,9 +65,9 @@ export async function updateBreeding(id: string, fd: FormData) {
 }
 
 export async function deleteBreeding(id: string) {
-  const user = await requireUser();
+  const { user, ownerId } = await requirePerm("breeding");
   const rec = await db.query.breedingRecords.findFirst({ where: eq(schema.breedingRecords.id, id), with: { mare: true } });
-  if (!rec || rec.mare.ownerId !== user.id) return;
+  if (!rec || rec.mare.ownerId !== ownerId) return;
   await db.delete(schema.breedingRecords).where(eq(schema.breedingRecords.id, id));
   revalidatePath("/breeding");
 }
@@ -75,9 +75,9 @@ export async function deleteBreeding(id: string) {
 /** AI Added Service: rank stallions for a mare. */
 export async function matingAdvisorAction(_: AiState, fd: FormData): Promise<AiState> {
   try {
-    const { user, mare } = await ownMare(String(fd.get("mareId")));
+    const { user, ownerId, mare } = await ownMare(String(fd.get("mareId")));
     const stallions = await db.query.horses.findMany({
-      where: and(eq(schema.horses.sex, "STALLION"), or(eq(schema.horses.isPublic, true), eq(schema.horses.ownerId, user.id))),
+      where: and(eq(schema.horses.sex, "STALLION"), or(eq(schema.horses.isPublic, true), eq(schema.horses.ownerId, ownerId))),
     });
     if (!stallions.length) return { error: "No stallions found on the platform yet." };
     const advice = await matingAdvisor(mare, stallions, str(fd, "goal") ?? "");

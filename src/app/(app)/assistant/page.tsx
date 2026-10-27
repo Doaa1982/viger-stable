@@ -1,4 +1,4 @@
-import { requireUser } from "@/lib/auth";
+import { requirePerm } from "@/lib/access";
 import { aiEnabled } from "@/lib/ai/client";
 import { AiTag, PageHeader } from "@/components/ui";
 import { Chat } from "./chat";
@@ -7,7 +7,7 @@ import { db, schema } from "@/db";
 import { clearAssistant, type ChatMessage } from "./actions";
 
 export default async function AssistantPage() {
-  const user = await requireUser();
+  const { user } = await requirePerm("assistant");
   const rows = await db.query.assistantMessages.findMany({ where: eq(schema.assistantMessages.userId, user.id), orderBy: asc(schema.assistantMessages.createdAt), limit: 100 });
   const history: ChatMessage[] = rows.map((r) => ({ id: r.id, role: r.role as "user" | "assistant", content: r.content }));
   return (

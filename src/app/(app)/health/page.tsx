@@ -1,22 +1,22 @@
 import Link from "next/link";
 import { asc, desc, eq } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { requireUser } from "@/lib/auth";
+import { requirePerm } from "@/lib/access";
 import { Badge, Card, Empty, PageHeader, Stat } from "@/components/ui";
 import { addDays, daysUntil, egp, fmtDate, label, startOfDay } from "@/lib/utils";
 import { RecordForm } from "./record-form";
 import { deleteHealthRecord } from "./actions";
 
 export default async function HealthPage({ searchParams }: { searchParams: Promise<{ horse?: string }> }) {
-  const user = await requireUser();
+  const { user, ownerId } = await requirePerm("yard");
   const { horse } = await searchParams;
   const today = startOfDay();
-  const horses = await db.query.horses.findMany({ where: eq(schema.horses.ownerId, user.id), orderBy: asc(schema.horses.name) });
+  const horses = await db.query.horses.findMany({ where: eq(schema.horses.ownerId, ownerId), orderBy: asc(schema.horses.name) });
   const rows = await db
     .select({ r: schema.healthRecords, horseName: schema.horses.name })
     .from(schema.healthRecords)
     .innerJoin(schema.horses, eq(schema.horses.id, schema.healthRecords.horseId))
-    .where(eq(schema.horses.ownerId, user.id))
+    .where(eq(schema.horses.ownerId, ownerId))
     .orderBy(desc(schema.healthRecords.date));
   const filtered = horse ? rows.filter((x) => x.r.horseId === horse) : rows;
 

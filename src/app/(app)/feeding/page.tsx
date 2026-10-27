@@ -1,16 +1,16 @@
 import Link from "next/link";
 import { asc, eq } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { requireUser } from "@/lib/auth";
+import { requirePerm } from "@/lib/access";
 import { AiPanel } from "@/components/ai-panel";
 import { SubmitButton } from "@/components/client";
 import { AiTag, Card, Empty, PageHeader } from "@/components/ui";
 import { aiFeedAction, saveFeedPlan } from "./actions";
 
 export default async function FeedingPage({ searchParams }: { searchParams: Promise<{ horse?: string }> }) {
-  const user = await requireUser();
+  const { user, ownerId } = await requirePerm("yard");
   const { horse: selectedId } = await searchParams;
-  const horses = await db.query.horses.findMany({ where: eq(schema.horses.ownerId, user.id), with: { feedPlans: true, stall: true }, orderBy: asc(schema.horses.name) });
+  const horses = await db.query.horses.findMany({ where: eq(schema.horses.ownerId, ownerId), with: { feedPlans: true, stall: true }, orderBy: asc(schema.horses.name) });
   const board = horses.map((h) => ({ h, plan: h.feedPlans.find((p) => p.active) }));
   const selected = horses.find((h) => h.id === selectedId) ?? horses[0];
   const plan = selected?.feedPlans.find((p) => p.active);

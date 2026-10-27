@@ -12,6 +12,7 @@ const at = (offsetDays: number, hour = 9, min = 0) => zonedDate(`${ymd(addDays(t
 
 async function wipe() {
   const order = [
+    s.reviews, s.memberships, s.lessons, s.lessonPackages, s.students,
     s.customerBookings, s.services, s.bookingSettings, s.files,
     s.assistantMessages, s.applications, s.jobs, s.bookings, s.messages, s.comments, s.likes, s.posts,
     s.invoices, s.transactions, s.gaitAnalyses, s.breedingRecords, s.horseConflicts, s.feedPlans,
@@ -231,8 +232,80 @@ async function main() {
   ]);
   await db.update(s.users).set({ phone: "+201001112233" }).where(eq(s.users.id, stable.id));
 
+  // ── Riding school ──
+  const [omar] = await db.insert(s.staff).values({ ownerId: stable.id, name: "Captain Omar", role: "Coach", phone: "+201005556677", skills: "show jumping, beginners, children" }).returning();
+  const [malak, adel, nadine] = await db
+    .insert(s.students)
+    .values([
+      { ownerId: stable.id, name: "Malak Mahmoud", phone: "+201114445566", guardianName: "Sara Mahmoud", birthYear: 2017, level: "BEGINNER", goals: "Ride on her own at walk and trot", coachStaffId: omar.id },
+      { ownerId: stable.id, name: "Adel Ramzy", phone: "+201006667788", email: "student@demo.com", birthYear: 1994, level: "INTERMEDIATE", goals: "Jump a full 90cm course by spring", coachStaffId: omar.id },
+      { ownerId: stable.id, name: "Nadine Kamal", phone: "+201007778899", birthYear: 2009, level: "NOVICE", goals: "Canter confidently", coachStaffId: omar.id },
+    ])
+    .returning();
+  const [pkMalak, pkAdel, pkNadine] = await db
+    .insert(s.lessonPackages)
+    .values([
+      { studentId: malak.id, name: "8-lesson kids card", lessonsTotal: 8, priceEgp: 5000, paid: true, purchasedAt: at(-21), expiresAt: at(70) },
+      { studentId: adel.id, name: "10-lesson card", lessonsTotal: 10, priceEgp: 9500, paid: true, purchasedAt: at(-30), expiresAt: at(60) },
+      { studentId: nadine.id, name: "5-lesson starter", lessonsTotal: 5, priceEgp: 3200, paid: false, purchasedAt: at(-10) },
+    ])
+    .returning();
+  await db.insert(s.lessons).values([
+    { studentId: malak.id, packageId: pkMalak.id, coachStaffId: omar.id, horseId: bahr.id, date: at(-14, 17), status: "ATTENDED", focus: "Balance at walk", rating: 3, coachNotes: "Nervous at first but by the end she was steering on her own. Keep heels down." },
+    { studentId: malak.id, packageId: pkMalak.id, coachStaffId: omar.id, horseId: bahr.id, date: at(-7, 17), status: "ATTENDED", focus: "Rising trot", rating: 4, coachNotes: "Found the rising trot rhythm on the lunge. Big smile!" },
+    { studentId: malak.id, packageId: pkMalak.id, coachStaffId: omar.id, horseId: bahr.id, date: at(0, 17), status: "SCHEDULED", focus: "Trot without the lunge" },
+    { studentId: adel.id, packageId: pkAdel.id, coachStaffId: omar.id, horseId: sultan.id, date: at(-12, 8), status: "ATTENDED", focus: "Gridwork", rating: 4, coachNotes: "Good rhythm through the grid. Still looks down over the fence." },
+    { studentId: adel.id, packageId: pkAdel.id, coachStaffId: omar.id, horseId: sultan.id, date: at(-5, 8), status: "NO_SHOW" },
+    { studentId: adel.id, packageId: pkAdel.id, coachStaffId: omar.id, horseId: sultan.id, date: at(-3, 8), status: "ATTENDED", focus: "Related distances", rating: 5, coachNotes: "Best lesson yet - rode a 6-stride line perfectly and kept his eyes up." },
+    { studentId: adel.id, packageId: pkAdel.id, coachStaffId: omar.id, horseId: sultan.id, date: at(2, 8), status: "SCHEDULED", focus: "First full 90cm course" },
+    { studentId: nadine.id, packageId: pkNadine.id, coachStaffId: omar.id, horseId: bahr.id, date: at(-2, 16), status: "ATTENDED", focus: "Canter transitions", rating: 3, coachNotes: "Two good canter transitions on the left rein, right rein needs work." },
+  ]);
+
+  // A finished visit so the customer can leave a review, plus one published review
+  const ride = byName("1-hour Pyramids");
+  const [doneRide, oldRide] = await db
+    .insert(s.customerBookings)
+    .values([
+      { ownerId: stable.id, serviceId: ride.id, serviceName: ride.name, reference: newReference(), customerName: "Emma Schneider", phone: "+4915112345678", email: "emma@example.com", country: "Germany", guests: 2, date: at(-3, 9), experience: "SOME", paymentMethod: "ARRIVAL", status: "COMPLETED", totalEgp: ride.priceEgp * 2, totalUsd: (ride.priceUsd ?? 0) * 2 },
+      { ownerId: stable.id, serviceId: sunset.id, serviceName: sunset.name, reference: newReference(), customerName: "James Carter", phone: "+447700900123", country: "United Kingdom", guests: 1, date: at(-9, 15, 30), experience: "CONFIDENT", paymentMethod: "TRANSFER", status: "COMPLETED", totalEgp: sunset.priceEgp, totalUsd: sunset.priceUsd },
+    ])
+    .returning();
+  void doneRide;
+  await db.insert(s.reviews).values({ ownerId: stable.id, bookingId: oldRide.id, authorName: "James Carter", country: "United Kingdom", rating: 5, comment: "Unforgettable sunset ride - lovely forward horse and a guide who knew every dune. Worth every pound!" });
+
+  // ── Team & rider logins (one per role) ──
+  const member = (email: string, name: string, phone: string) => ({ email, passwordHash: pw, name, role: "MEMBER", city: "Giza", phone });
+  const [uManager, uCoach, uGroom, uStudent, uOwner, uCustomer, uPending] = await db
+    .insert(s.users)
+    .values([
+      member("manager@demo.com", "Hana", "+201004445566"),
+      member("instructor@demo.com", "Captain Omar", "+201005556677"),
+      member("groom@demo.com", "Saeed", "+201002223344"),
+      member("student@demo.com", "Adel Ramzy", "+201006667788"),
+      member("owner@demo.com", "Mona Farouk", "+20 100 555 1234"),
+      member("customer@demo.com", "Emma Schneider", "+4915112345678"),
+      member("pending@demo.com", "Karim Nabil", "+201009990000"),
+    ])
+    .returning();
+  await db.insert(s.memberships).values([
+    { ownerId: stable.id, userId: uManager.id, role: "MANAGER", name: "Hana", phone: uManager.phone, email: uManager.email, status: "ACTIVE", staffId: hana.id },
+    { ownerId: stable.id, userId: uCoach.id, role: "COACH", name: "Captain Omar", phone: uCoach.phone, email: uCoach.email, status: "ACTIVE", staffId: omar.id },
+    { ownerId: stable.id, userId: uGroom.id, role: "GROOM", name: "Saeed", phone: uGroom.phone, email: uGroom.email, status: "ACTIVE", staffId: saeed.id },
+    { ownerId: stable.id, userId: uStudent.id, role: "STUDENT", name: "Adel Ramzy", phone: uStudent.phone, email: uStudent.email, status: "ACTIVE", studentId: adel.id },
+    { ownerId: stable.id, userId: uOwner.id, role: "HORSE_OWNER", name: "Mona Farouk", phone: uOwner.phone, email: uOwner.email, status: "ACTIVE", clientId: clientA.id },
+    { ownerId: stable.id, userId: uCustomer.id, role: "CUSTOMER", name: "Emma Schneider", phone: uCustomer.phone, email: uCustomer.email, status: "ACTIVE" },
+    { ownerId: stable.id, userId: uPending.id, role: "STUDENT", name: "Karim Nabil", phone: uPending.phone, email: uPending.email, status: "PENDING" },
+    { ownerId: stable.id, role: "STAFF_RIDER", name: "Youssef", phone: "+201003334455", status: "INVITED", inviteToken: "demo-invite-youssef", inviteExpires: at(14), staffId: youssef.id },
+  ]);
+  await db.insert(s.tasks).values([
+    { ownerId: stable.id, staffId: saeed.id, title: "Turn out Layla and Nada to Paddock A", category: "CARE", dueAt: at(0, 8), horseId: horses.find((h) => h.name === "Layla")!.id },
+    { ownerId: stable.id, staffId: saeed.id, title: "Clean and oil the lesson tack", category: "CARE", dueAt: at(0, 14) },
+    { ownerId: stable.id, staffId: hana.id, title: "Approve new student sign-up: Karim Nabil", category: "OTHER", dueAt: at(0, 10) },
+  ]);
+
   console.log("Seeded demo data.\nLog in with demo@vigerstable.com / password123 (stable)\nPublic booking page: /s/viger-stable");
   console.log("Other demo users: rider@demo.com, vet@demo.com, farrier@demo.com, coach@demo.com, fan@demo.com (same password)");
+  console.log("Stable team & riders: manager@demo.com, instructor@demo.com, groom@demo.com, student@demo.com, owner@demo.com, customer@demo.com, pending@demo.com (same password)");
 }
 
 main().then(() => process.exit(0)).catch((e) => {

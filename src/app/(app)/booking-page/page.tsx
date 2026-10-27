@@ -2,7 +2,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { asc, eq } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { requireUser } from "@/lib/auth";
+import { requirePerm } from "@/lib/access";
 import { SubmitButton, ConfirmButton } from "@/components/client";
 import { Badge, Card, Empty, PageHeader } from "@/components/ui";
 import { CATEGORY_LABEL, PRICE_UNIT_LABEL, SERVICE_CATEGORIES } from "@/lib/booking";
@@ -34,8 +34,8 @@ function ServiceFields({ s }: { s?: Svc }) {
 }
 
 export default async function BookingPageAdmin() {
-  const user = await requireUser();
-  const settings = await db.query.bookingSettings.findFirst({ where: eq(schema.bookingSettings.ownerId, user.id) });
+  const { user, ownerId } = await requirePerm("bookingSettings");
+  const settings = await db.query.bookingSettings.findFirst({ where: eq(schema.bookingSettings.ownerId, ownerId) });
   if (!settings) {
     return (
       <div className="max-w-xl">
@@ -47,7 +47,7 @@ export default async function BookingPageAdmin() {
       </div>
     );
   }
-  const services = await db.query.services.findMany({ where: eq(schema.services.ownerId, user.id), orderBy: [asc(schema.services.sortOrder), asc(schema.services.name)] });
+  const services = await db.query.services.findMany({ where: eq(schema.services.ownerId, ownerId), orderBy: [asc(schema.services.sortOrder), asc(schema.services.name)] });
   const publicPath = `/s/${settings.slug}`;
   const host = (await headers()).get("host") ?? "viger-stable.vercel.app";
   const publicUrl = `${host.startsWith("localhost") ? "http" : "https"}://${host}${publicPath}`;

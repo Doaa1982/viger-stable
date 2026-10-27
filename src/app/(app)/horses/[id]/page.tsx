@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { and, asc, desc, eq, gte } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { requireUser } from "@/lib/auth";
+import { requirePerm } from "@/lib/access";
 import { AiPanel } from "@/components/ai-panel";
 import { SubmitButton } from "@/components/client";
 import { Markdown } from "@/components/markdown";
@@ -14,8 +14,8 @@ import { ImageInput } from "@/components/image-input";
 
 export default async function HorseDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const user = await requireUser();
-  const horse = await getOwnedHorse(user, id);
+  const { user, ownerId } = await requirePerm("yard");
+  const horse = await getOwnedHorse(ownerId, id);
   const [records, feed, slots, requests, gaits, stall] = await Promise.all([
     db.query.healthRecords.findMany({ where: eq(schema.healthRecords.horseId, id), orderBy: desc(schema.healthRecords.date), limit: 8 }),
     db.query.feedPlans.findFirst({ where: and(eq(schema.feedPlans.horseId, id), eq(schema.feedPlans.active, true)) }),

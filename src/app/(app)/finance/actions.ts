@@ -4,17 +4,17 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { and, desc, eq, gte } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { requireUser } from "@/lib/auth";
+import { requirePerm } from "@/lib/access";
 import { aiEnabled, askText } from "@/lib/ai/client";
 import type { AiState } from "@/components/ai-panel";
 import { addDays, date, egp, num, str, ymd } from "@/lib/utils";
 
 export async function addTransaction(fd: FormData) {
-  const user = await requireUser();
+  const { user, ownerId } = await requirePerm("finance");
   const amount = num(fd, "amount");
   if (!amount) return;
   await db.insert(schema.transactions).values({
-    ownerId: user.id,
+    ownerId: ownerId,
     kind: str(fd, "kind") ?? "EXPENSE",
     category: str(fd, "category") ?? "Other",
     amount,
@@ -26,31 +26,31 @@ export async function addTransaction(fd: FormData) {
 }
 
 export async function deleteTransaction(id: string) {
-  const user = await requireUser();
-  await db.delete(schema.transactions).where(and(eq(schema.transactions.id, id), eq(schema.transactions.ownerId, user.id)));
+  const { user, ownerId } = await requirePerm("finance");
+  await db.delete(schema.transactions).where(and(eq(schema.transactions.id, id), eq(schema.transactions.ownerId, ownerId)));
   revalidatePath("/finance");
 }
 
 export async function addClient(fd: FormData) {
-  const user = await requireUser();
+  const { user, ownerId } = await requirePerm("finance");
   const name = str(fd, "name");
   if (!name) return;
-  await db.insert(schema.clients).values({ ownerId: user.id, name, phone: str(fd, "phone"), email: str(fd, "email") });
+  await db.insert(schema.clients).values({ ownerId: ownerId, name, phone: str(fd, "phone"), email: str(fd, "email") });
   revalidatePath("/finance");
 }
 
 export async function linkHorseToClient(fd: FormData) {
-  const user = await requireUser();
+  const { user, ownerId } = await requirePerm("finance");
   const horseId = str(fd, "horseId");
   if (!horseId) return;
-  await db.update(schema.horses).set({ clientId: str(fd, "clientId") }).where(and(eq(schema.horses.id, horseId), eq(schema.horses.ownerId, user.id)));
+  await db.update(schema.horses).set({ clientId: str(fd, "clientId") }).where(and(eq(schema.horses.id, horseId), eq(schema.horses.ownerId, ownerId)));
   revalidatePath("/finance");
 }
 
 export async function createInvoice(fd: FormData) {
-  const user = await requireUser();
+  const { user, ownerId } = await requirePerm("finance");
   const clientId = str(fd, "clientId");
-  const client = clientId ? await db.query.clients.findFirst({ where: and(eq(schema.clients.id, clientId), eq(schema.clients.ownerId, user.id)) }) : null;
+  const client = clientId ? await db.query.clients.findFirst({ where: and(eq(schema.clients.id, clientId), eq(schema.clients.ownerId, ownerId)) }) : null;
   const clientName = client?.name ?? str(fd, "clientName");
   if (!clientName) return;
   const items = [0, 1, 2, 3, 4]
@@ -58,11 +58,11 @@ export async function createInvoice(fd: FormData) {
     .filter((i): i is { description: string; quantity: number; unitPrice: number } => Boolean(i.description) && i.unitPrice > 0);
   if (!items.length) return;
   const total = items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
-  const count = (await db.query.invoices.findMany({ where: eq(schema.invoices.ownerId, user.id) })).length;
+  const count = (await db.query.invoices.findMany({ where: eq(schema.invoices.ownerId, ownerId) })).length;
   const [inv] = await db
     .insert(schema.invoices)
     .values({
-      ownerId: user.id,
+      ownerId: ownerId,
       clientId: client?.id ?? null,
       clientName,
       number: `VS-${String(count + 1).padStart(4, "0")}`,
@@ -78,12 +78,12 @@ export async function createInvoice(fd: FormData) {
 }
 
 export async function setInvoiceStatus(id: string, status: string) {
-  const user = await requireUser();
-  const inv = await db.query.invoices.findFirst({ where: and(eq(schema.invoices.id, id), eq(schema.invoices.ownerId, user.id)) });
+  const { user, ownerId } = await requirePerm("finance");
+  const inv = await db.query.invoices.findFirst({ where: and(eq(schema.invoices.id, id), eq(schema.invoices.ownerId, ownerId)) });
   if (!inv) return;
   await db.update(schema.invoices).set({ status }).where(eq(schema.invoices.id, id));
   if (status === "PAID" && inv.status !== "PAID") {
-    await db.insert(schema.transactions).values({ ownerId: user.id, kind: "INCOME", category: "Invoices", amount: inv.total, date: new Date(), description: `Invoice ${inv.number} - ${inv.clientName}` });
+    await db.insert(schema.transactions).values({ ownerId: ownerId, kind: "INCOME", category: "Invoices", amount: inv.total, date: new Date(), description: `Invoice ${inv.number} - ${inv.clientName}` });
   }
   revalidatePath("/finance");
   revalidatePath(`/finance/invoices/${id}`);
@@ -92,10 +92,10 @@ export async function setInvoiceStatus(id: string, status: string) {
 /** AI Enhancement: plain-language finance review and next-month forecast. */
 export async function financeInsightsAction(): Promise<AiState> {
   try {
-    const user = await requireUser();
+    const { user, ownerId } = await requirePerm("finance");
     const since = addDays(new Date(), -90);
-    const tx = await db.query.transactions.findMany({ where: and(eq(schema.transactions.ownerId, user.id), gte(schema.transactions.date, since)), with: { horse: true }, orderBy: desc(schema.transactions.date) });
-    const inv = await db.query.invoices.findMany({ where: eq(schema.invoices.ownerId, user.id) });
+    const tx = await db.query.transactions.findMany({ where: and(eq(schema.transactions.ownerId, ownerId), gte(schema.transactions.date, since)), with: { horse: true }, orderBy: desc(schema.transactions.date) });
+    const inv = await db.query.invoices.findMany({ where: eq(schema.invoices.ownerId, ownerId) });
     const income = tx.filter((t) => t.kind === "INCOME").reduce((s, t) => s + t.amount, 0);
     const expense = tx.filter((t) => t.kind === "EXPENSE").reduce((s, t) => s + t.amount, 0);
     const unpaid = inv.filter((i) => i.status === "SENT" || i.status === "OVERDUE");

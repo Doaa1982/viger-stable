@@ -1,21 +1,21 @@
 import Link from "next/link";
 import { and, asc, desc, eq, gte, lt } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { requireUser } from "@/lib/auth";
+import { requirePerm } from "@/lib/access";
 import { Badge, Card, Empty, PageHeader, Stat, Tabs } from "@/components/ui";
 import { whatsappLink } from "@/lib/booking";
 import { addDays, egp, fmtDate, fmtTime, label, startOfDay, ymd, zonedDate } from "@/lib/utils";
-import { setBookingStatus } from "./actions";
+import { setBookingStatus, setReviewPublished } from "./actions";
 
 const TONE: Record<string, "amber" | "green" | "blue" | "gray" | "red"> = { REQUESTED: "amber", CONFIRMED: "blue", PAID: "green", COMPLETED: "gray", CANCELLED: "red" };
 const EXP: Record<string, string> = { NONE: "Beginner", SOME: "Some experience", CONFIDENT: "Confident" };
 
 export default async function CustomerBookingsPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
-  const user = await requireUser();
+  const { user, ownerId } = await requirePerm("customerBookings");
   const { view = "upcoming" } = await searchParams;
   const today = startOfDay();
-  const settings = await db.query.bookingSettings.findFirst({ where: eq(schema.bookingSettings.ownerId, user.id) });
-  const base = eq(schema.customerBookings.ownerId, user.id);
+  const settings = await db.query.bookingSettings.findFirst({ where: eq(schema.bookingSettings.ownerId, ownerId) });
+  const base = eq(schema.customerBookings.ownerId, ownerId);
   const where =
     view === "requests"
       ? and(base, eq(schema.customerBookings.status, "REQUESTED"))
@@ -85,6 +85,25 @@ export default async function CustomerBookingsPage({ searchParams }: { searchPar
           </ul>
         )}
       </Card>
+      <ReviewsCard ownerId={ownerId} />
     </div>
+  );
+}
+
+async function ReviewsCard({ ownerId }: { ownerId: string }) {
+  const reviews = await db.query.reviews.findMany({ where: eq(schema.reviews.ownerId, ownerId), orderBy: desc(schema.reviews.createdAt), limit: 20 });
+  return (
+    <Card title="Customer reviews">
+      {reviews.length === 0 ? <Empty>Customers with an account can review a booking once it&apos;s marked Completed. Reviews show on your public page.</Empty> : (
+        <ul className="divide-y divide-stone-100 text-sm">
+          {reviews.map((r) => (
+            <li key={r.id} className={`flex items-start justify-between gap-3 py-2 ${r.published ? "" : "opacity-50"}`}>
+              <div><span className="text-amber-500">{"★".repeat(r.rating)}</span> <b>{r.authorName}</b>{r.country && <span className="text-stone-500"> · {r.country}</span>} <span className="text-xs text-stone-500">· {fmtDate(r.createdAt)}</span>{r.comment && <p className="text-stone-700">{r.comment}</p>}</div>
+              <form action={setReviewPublished.bind(null, r.id, !r.published)}><button className="btn-secondary btn-sm">{r.published ? "Hide" : "Show"}</button></form>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }

@@ -15,6 +15,13 @@
       "when": 1793068896236,
       "tag": "0001_public_booking",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1793070046423,
+      "tag": "0002_riders_accounts",
+      "breakpoints": true
     }
   ]
 }

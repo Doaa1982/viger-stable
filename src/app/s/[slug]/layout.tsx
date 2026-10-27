@@ -18,11 +18,14 @@ export default async function PublicStableLayout({ children, params }: { childre
       <header className="border-b border-brand-200 bg-white/90 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
           <Link href={`/s/${slug}`} className="text-lg font-bold text-forest-700">🐎 {settings.displayName}</Link>
+          <div className="flex items-center gap-2">
+          <Link href={`/s/${slug}/join`} className="btn-secondary">Sign in / Join</Link>
           {wa && (
             <a href={wa} target="_blank" rel="noreferrer" className="btn bg-emerald-600 text-white hover:bg-emerald-700">
               WhatsApp us
             </a>
           )}
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-4 py-8">{children}</main>

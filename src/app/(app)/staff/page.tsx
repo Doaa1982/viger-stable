@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { and, asc, eq, gte, lt } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { requireUser } from "@/lib/auth";
+import { requirePerm } from "@/lib/access";
 import { AiPanel } from "@/components/ai-panel";
 import { ConfirmButton, SubmitButton } from "@/components/client";
 import { AiTag, Badge, Card, Empty, PageHeader } from "@/components/ui";
@@ -10,12 +10,12 @@ import { addShift, addStaff, aiRotaAction, clockIn, clockOut, deleteShift, remov
 import { DAYS, weekStart } from "./week";
 
 export default async function StaffPage({ searchParams }: { searchParams: Promise<{ week?: string }> }) {
-  const user = await requireUser();
+  const { user, ownerId } = await requirePerm("staffRota");
   const offset = Number((await searchParams).week ?? 0);
   const ws = weekStart(offset);
-  const staff = await db.query.staff.findMany({ where: eq(schema.staff.ownerId, user.id), with: { timeEntries: true }, orderBy: asc(schema.staff.name) });
+  const staff = await db.query.staff.findMany({ where: eq(schema.staff.ownerId, ownerId), with: { timeEntries: true }, orderBy: asc(schema.staff.name) });
   const shifts = await db.query.shifts.findMany({
-    where: and(eq(schema.shifts.ownerId, user.id), gte(schema.shifts.start, ws), lt(schema.shifts.start, addDays(ws, 7))),
+    where: and(eq(schema.shifts.ownerId, ownerId), gte(schema.shifts.start, ws), lt(schema.shifts.start, addDays(ws, 7))),
     orderBy: asc(schema.shifts.start),
   });
 

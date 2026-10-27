@@ -1,4 +1,4 @@
-import { requireUser } from "@/lib/auth";
+import { requirePerm } from "@/lib/access";
 import { PageHeader } from "@/components/ui";
 import { ConfirmButton } from "@/components/client";
 import { HorseForm } from "../../horse-form";
@@ -7,8 +7,8 @@ import { getOwnedHorse } from "../../data";
 
 export default async function EditHorsePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const user = await requireUser();
-  const horse = await getOwnedHorse(user, id);
+  const { user, ownerId } = await requirePerm("horsesEdit");
+  const horse = await getOwnedHorse(ownerId, id);
   return (
     <div className="max-w-4xl">
       <PageHeader

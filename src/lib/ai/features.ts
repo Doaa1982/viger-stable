@@ -553,3 +553,38 @@ Give a 7-day plan (Saturday to Friday) as markdown bullets with session type, du
     maxTokens: 1000,
   });
 }
+
+// ───────────── 16. Rider Progress Report (AI Added Service) ─────────────
+
+export async function riderProgressReport(
+  student: { name: string; level: string; goals: string | null; birthYear: number | null; guardianName: string | null },
+  lessons: { date: Date; focus: string | null; coachNotes: string | null; rating: number | null; status: string; horse: string | null }[],
+  stableName: string,
+): Promise<string> {
+  const attended = lessons.filter((l) => l.status === "ATTENDED");
+  if (!aiEnabled()) {
+    const avg = attended.filter((l) => l.rating).reduce((s, l, _, a) => s + (l.rating ?? 0) / a.length, 0);
+    return `**Progress report - ${student.name}** (demo mode)
+
+${student.name} has attended **${attended.length} lesson(s)** at ${stableName} and is currently at **${label(student.level)}** level.${avg ? ` Average lesson score: **${avg.toFixed(1)} / 5**.` : ""}
+
+- **Recent focus:** ${attended.slice(0, 3).map((l) => l.focus).filter(Boolean).join(", ") || "basic riding skills"}
+- **Coach's latest note:** ${attended.find((l) => l.coachNotes)?.coachNotes ?? "No notes yet."}
+- **Next goals:** ${student.goals ?? "build confidence and a steady position at walk and trot"}
+
+_Connect the AI for a personalised, friendly report written from all coach notes._`;
+  }
+  return askText({
+    system: `You write warm, encouraging riding-school progress reports for riders and parents. Be specific, honest and kind: celebrate progress, name 1-2 things to keep working on, and suggest next steps. Plain English, short paragraphs and bullets, max 220 words. Never invent lessons, horses or results that are not in the data.`,
+    prompt: `Stable: ${stableName}
+Rider: ${student.name}${student.birthYear ? `, age ${age(student.birthYear)}` : ""}${student.guardianName ? ` (parent/guardian: ${student.guardianName})` : ""}
+Level: ${label(student.level)}
+Goals: ${student.goals ?? "not set"}
+
+Lessons (newest first):
+${lessons.slice(0, 20).map((l) => `- ${ymd(l.date)} ${label(l.status)}${l.horse ? ` on ${l.horse}` : ""}${l.focus ? ` | focus: ${l.focus}` : ""}${l.rating ? ` | score ${l.rating}/5` : ""}${l.coachNotes ? ` | coach: ${l.coachNotes}` : ""}`).join("\n") || "No lessons yet."}
+
+Write the report with headings: Progress so far, Strengths, Keep working on, Next steps.`,
+    maxTokens: 800,
+  });
+}

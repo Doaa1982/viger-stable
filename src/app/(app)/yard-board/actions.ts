@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { and, eq, or } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { requireUser } from "@/lib/auth";
+import { requirePerm } from "@/lib/access";
 import { aiEnabled, askText } from "@/lib/ai/client";
 import type { AiState } from "@/components/ai-panel";
 import { label, num, str } from "@/lib/utils";
@@ -11,29 +11,29 @@ import { label, num, str } from "@/lib/utils";
 export type BoardState = { error?: string; ok?: string } | undefined;
 
 export async function addStall(fd: FormData) {
-  const user = await requireUser();
+  const { user, ownerId } = await requirePerm("yard");
   const name = str(fd, "name");
   if (!name) return;
-  await db.insert(schema.stalls).values({ ownerId: user.id, name, building: str(fd, "building") ?? "Main barn", kind: str(fd, "kind") ?? "STALL", capacity: num(fd, "capacity") ?? 1 });
+  await db.insert(schema.stalls).values({ ownerId: ownerId, name, building: str(fd, "building") ?? "Main barn", kind: str(fd, "kind") ?? "STALL", capacity: num(fd, "capacity") ?? 1 });
   revalidatePath("/yard-board");
 }
 
 export async function deleteStall(id: string) {
-  const user = await requireUser();
-  await db.delete(schema.stalls).where(and(eq(schema.stalls.id, id), eq(schema.stalls.ownerId, user.id)));
+  const { user, ownerId } = await requirePerm("yard");
+  await db.delete(schema.stalls).where(and(eq(schema.stalls.id, id), eq(schema.stalls.ownerId, ownerId)));
   revalidatePath("/yard-board");
 }
 
 /** Move a horse into a stall/paddock. Blocks the move if capacity is full or a conflict exists. */
 export async function assignHorse(_: BoardState, fd: FormData): Promise<BoardState> {
-  const user = await requireUser();
+  const { user, ownerId } = await requirePerm("yard");
   const horseId = str(fd, "horseId");
   const stallId = str(fd, "stallId");
   if (!horseId) return { error: "Choose a horse." };
-  const horse = await db.query.horses.findFirst({ where: and(eq(schema.horses.id, horseId), eq(schema.horses.ownerId, user.id)) });
+  const horse = await db.query.horses.findFirst({ where: and(eq(schema.horses.id, horseId), eq(schema.horses.ownerId, ownerId)) });
   if (!horse) return { error: "Horse not found." };
   if (stallId) {
-    const stall = await db.query.stalls.findFirst({ where: and(eq(schema.stalls.id, stallId), eq(schema.stalls.ownerId, user.id)), with: { horses: true } });
+    const stall = await db.query.stalls.findFirst({ where: and(eq(schema.stalls.id, stallId), eq(schema.stalls.ownerId, ownerId)), with: { horses: true } });
     if (!stall) return { error: "Stall not found." };
     const occupants = stall.horses.filter((h) => h.id !== horseId);
     if (occupants.length >= stall.capacity) return { error: `${stall.name} is full (${stall.capacity}).` };
@@ -50,18 +50,18 @@ export async function assignHorse(_: BoardState, fd: FormData): Promise<BoardSta
 }
 
 export async function addConflict(fd: FormData) {
-  const user = await requireUser();
+  const { user, ownerId } = await requirePerm("yard");
   const a = str(fd, "horseA");
   const b = str(fd, "horseB");
   if (!a || !b || a === b) return;
-  const owned = await db.query.horses.findMany({ where: eq(schema.horses.ownerId, user.id) });
+  const owned = await db.query.horses.findMany({ where: eq(schema.horses.ownerId, ownerId) });
   if (!owned.some((h) => h.id === a) || !owned.some((h) => h.id === b)) return;
   await db.insert(schema.horseConflicts).values({ horseAId: a, horseBId: b, reason: str(fd, "reason") ?? "Do not pair" });
   revalidatePath("/yard-board");
 }
 
 export async function deleteConflict(id: string) {
-  await requireUser();
+  await requirePerm("yard");
   await db.delete(schema.horseConflicts).where(eq(schema.horseConflicts.id, id));
   revalidatePath("/yard-board");
 }
@@ -69,11 +69,11 @@ export async function deleteConflict(id: string) {
 /** AI Enhancement: suggest turnout groups and stable placement. */
 export async function aiTurnoutAction(): Promise<AiState> {
   try {
-    const user = await requireUser();
-    const horses = await db.query.horses.findMany({ where: eq(schema.horses.ownerId, user.id), with: { stall: true } });
+    const { user, ownerId } = await requirePerm("yard");
+    const horses = await db.query.horses.findMany({ where: eq(schema.horses.ownerId, ownerId), with: { stall: true } });
     const ids = horses.map((h) => h.id);
     const conflicts = (await db.query.horseConflicts.findMany({ with: { horseA: true, horseB: true } })).filter((c) => ids.includes(c.horseAId));
-    const paddocks = await db.query.stalls.findMany({ where: and(eq(schema.stalls.ownerId, user.id), eq(schema.stalls.kind, "PADDOCK")) });
+    const paddocks = await db.query.stalls.findMany({ where: and(eq(schema.stalls.ownerId, ownerId), eq(schema.stalls.kind, "PADDOCK")) });
     if (!aiEnabled()) {
       const mares = horses.filter((h) => h.sex === "MARE").map((h) => h.name);
       const geldings = horses.filter((h) => h.sex === "GELDING").map((h) => h.name);

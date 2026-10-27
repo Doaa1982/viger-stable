@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { asc, eq } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { requireUser } from "@/lib/auth";
+import { requirePerm } from "@/lib/access";
 import { Badge, Empty, HorseAvatar, PageHeader } from "@/components/ui";
 import { age, label } from "@/lib/utils";
 
 export default async function HorsesPage() {
-  const user = await requireUser();
-  const horses = await db.query.horses.findMany({ where: eq(schema.horses.ownerId, user.id), with: { stall: true }, orderBy: asc(schema.horses.name) });
+  const { user, ownerId } = await requirePerm("yard");
+  const horses = await db.query.horses.findMany({ where: eq(schema.horses.ownerId, ownerId), with: { stall: true }, orderBy: asc(schema.horses.name) });
   return (
     <div>
       <PageHeader title="My horses" subtitle={`${horses.length} horses`} actions={<Link href="/horses/new" className="btn-primary">+ Add horse</Link>} />

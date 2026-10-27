@@ -3,12 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { and, eq, ne } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { requireUser } from "@/lib/auth";
+import { requirePerm } from "@/lib/access";
 import { ensureBookingPage, SERVICE_CATEGORIES, slugify } from "@/lib/booking";
 import { num, str } from "@/lib/utils";
 
 export async function createBookingPage() {
-  const user = await requireUser();
+  const { user, ownerId } = await requirePerm("bookingSettings");
   await ensureBookingPage(user);
   revalidatePath("/booking-page");
 }
@@ -16,8 +16,8 @@ export async function createBookingPage() {
 export type SettingsState = { ok?: string; error?: string } | undefined;
 
 export async function saveSettings(_: SettingsState, fd: FormData): Promise<SettingsState> {
-  const user = await requireUser();
-  const current = await db.query.bookingSettings.findFirst({ where: eq(schema.bookingSettings.ownerId, user.id) });
+  const { user, ownerId } = await requirePerm("bookingSettings");
+  const current = await db.query.bookingSettings.findFirst({ where: eq(schema.bookingSettings.ownerId, ownerId) });
   if (!current) return { error: "Create your booking page first." };
   const slug = slugify(str(fd, "slug") ?? current.slug);
   const taken = await db.query.bookingSettings.findFirst({ where: and(eq(schema.bookingSettings.slug, slug), ne(schema.bookingSettings.id, current.id)) });
@@ -77,19 +77,19 @@ function serviceFields(fd: FormData) {
 }
 
 export async function addService(fd: FormData) {
-  const user = await requireUser();
-  await db.insert(schema.services).values({ ...serviceFields(fd), active: true, ownerId: user.id });
+  const { user, ownerId } = await requirePerm("bookingSettings");
+  await db.insert(schema.services).values({ ...serviceFields(fd), active: true, ownerId: ownerId });
   revalidatePath("/booking-page");
 }
 
 export async function updateService(id: string, fd: FormData) {
-  const user = await requireUser();
-  await db.update(schema.services).set(serviceFields(fd)).where(and(eq(schema.services.id, id), eq(schema.services.ownerId, user.id)));
+  const { user, ownerId } = await requirePerm("bookingSettings");
+  await db.update(schema.services).set(serviceFields(fd)).where(and(eq(schema.services.id, id), eq(schema.services.ownerId, ownerId)));
   revalidatePath("/booking-page");
 }
 
 export async function deleteService(id: string) {
-  const user = await requireUser();
-  await db.delete(schema.services).where(and(eq(schema.services.id, id), eq(schema.services.ownerId, user.id)));
+  const { user, ownerId } = await requirePerm("bookingSettings");
+  await db.delete(schema.services).where(and(eq(schema.services.id, id), eq(schema.services.ownerId, ownerId)));
   revalidatePath("/booking-page");
 }
