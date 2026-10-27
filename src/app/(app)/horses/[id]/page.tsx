@@ -10,6 +10,7 @@ import { age, egp, fmtDate, fmtDateTime, label } from "@/lib/utils";
 import { getOwnedHorse } from "../data";
 import { addTrialSlot, deleteTrialSlot, gaitAction, healthRiskAction, listingAction, trainingPlanAction, triageAction, updateListing, valuationAction } from "../actions";
 import { decideTrial } from "../../trials/actions";
+import { ImageInput } from "@/components/image-input";
 
 export default async function HorseDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -115,7 +116,7 @@ export default async function HorseDetail({ params }: { params: Promise<{ id: st
             <p className="mb-3 text-sm text-stone-500">Something wrong? Describe it (and add photos). The AI tells you how urgent it is and what to do while you wait for the vet.</p>
             <AiPanel action={triageAction} button="How urgent is this?" hidden={{ horseId: horse.id }}>
               <textarea name="description" rows={2} className="input" placeholder="e.g. pawing and looking at his belly since lunch, no droppings" />
-              <input type="file" name="photos" accept="image/*" multiple className="text-sm" />
+              <ImageInput name="photos" multiple />
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="log" defaultChecked /> Log it in the health record</label>
             </AiPanel>
           </Card>
@@ -149,7 +150,7 @@ export default async function HorseDetail({ params }: { params: Promise<{ id: st
           <Card title={<span className="flex items-center gap-2">Ride &amp; Gait Analysis <AiTag kind="added" /></span>}>
             <p className="mb-3 text-sm text-stone-500">Upload 1-4 photos or video frames of {horse.name} moving (side and behind views work best).</p>
             <AiPanel action={gaitAction} button="Analyse movement" hidden={{ horseId: horse.id }} pendingText="Analysing frames...">
-              <input type="file" name="frames" accept="image/*" multiple className="text-sm" />
+              <ImageInput name="frames" multiple />
               <input name="context" className="input" placeholder="Context, e.g. trot on hard ground, left rein" />
             </AiPanel>
             {gaits.length > 0 && (

@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { scanPassportAction } from "./actions";
 import { SubmitButton } from "@/components/client";
+import { ImageInput } from "@/components/image-input";
 
 type HorseLike = Partial<{
   name: string; breed: string | null; sex: string | null; color: string | null; birthYear: number | null; heightCm: number | null;
@@ -25,7 +26,7 @@ export function HorseForm({ action, horse, submitLabel }: { action: (fd: FormDat
           <span className="badge bg-violet-100 text-violet-800">✦ AI Enhancement</span>
         </div>
         <p className="text-sm text-stone-500">Photograph the passport or FEI card pages (Arabic or English). The AI fills in the form below.</p>
-        <input type="file" name="pages" accept="image/*" multiple className="text-sm" />
+        <ImageInput name="pages" multiple />
         <div>
           <button className="btn-ai btn-sm" disabled={scanning}>{scanning ? "Reading passport..." : "✦ Read passport"}</button>
         </div>
@@ -58,7 +59,7 @@ export function HorseForm({ action, horse, submitLabel }: { action: (fd: FormDat
         <label className="block"><span className="lbl">Dam</span><input name="dam" className="input" defaultValue={h.dam ?? ""} /></label>
         <label className="block"><span className="lbl">Dam sire</span><input name="damSire" className="input" defaultValue={h.damSire ?? ""} /></label>
         <label className="block md:col-span-3"><span className="lbl">Description</span><textarea name="description" rows={3} className="input" defaultValue={h.description ?? ""} /></label>
-        <label className="block"><span className="lbl">Photo</span><input name="photo" type="file" accept="image/*" className="text-sm" /></label>
+        <label className="block"><span className="lbl">Photo</span><ImageInput name="photo" /></label>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="isPublic" defaultChecked={h.isPublic ?? true} /> Show in public search</label>
         <div className="md:col-span-3"><SubmitButton>{submitLabel}</SubmitButton></div>
       </form>

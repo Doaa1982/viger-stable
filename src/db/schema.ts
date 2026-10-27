@@ -350,6 +350,17 @@ export const assistantMessages = sqliteTable("assistant_messages", {
   createdAt: createdAt(),
 });
 
+// ─────────────────────────── Uploaded files ───────────────────────────
+// Photos and documents are stored in the database (base64) so the app works on
+// serverless hosting with no separate file storage. Served at /files/<id>.
+export const files = sqliteTable("files", {
+  id: id(),
+  mimeType: text("mime_type").notNull(),
+  data: text("data").notNull(), // base64
+  size: integer("size").notNull(),
+  createdAt: createdAt(),
+});
+
 // ─────────────────────────── Relations ───────────────────────────
 
 export const usersRelations = relations(users, ({ many }) => ({

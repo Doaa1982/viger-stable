@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { addHealthRecord, smartScanAction } from "./actions";
 import { SubmitButton } from "@/components/client";
+import { ImageInput } from "@/components/image-input";
 
 const TYPES = ["VACCINATION", "WORMING", "DENTAL", "FARRIER", "TREATMENT", "BLOOD_TEST", "VET_VISIT", "INJURY", "OTHER"];
 const nice = (t: string) => t.charAt(0) + t.slice(1).toLowerCase().replace("_", " ");
@@ -17,7 +18,7 @@ export function RecordForm({ horses, defaultHorse }: { horses: { id: string; nam
       <form action={scanAction} className="rounded-lg border border-violet-200 bg-violet-50/40 p-3">
         <div className="mb-2 flex items-center gap-2 text-sm font-medium">Smart Scan <span className="badge bg-violet-100 text-violet-800">✦ AI Enhancement</span></div>
         <p className="mb-2 text-xs text-stone-500">Photo of a vaccination card, vet invoice, lab result or farrier note - Arabic or English.</p>
-        <input type="file" name="document" accept="image/*" capture="environment" className="mb-2 block text-sm" />
+        <div className="mb-2"><ImageInput name="document" capture="environment" /></div>
         <button className="btn-ai btn-sm" disabled={scanning}>{scanning ? "Reading..." : "✦ Read document"}</button>
         {scan?.error && <p className="mt-2 text-sm text-red-600">{scan.error}</p>}
         {d && <p className="mt-2 text-sm text-violet-700">Filled in below - check and save.</p>}
