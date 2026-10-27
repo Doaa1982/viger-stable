@@ -80,7 +80,7 @@ export function BookingForm({ slug, service, usdUnit, minDay, maxDay, payOnArriv
         <legend className="px-1 text-sm font-semibold">2. Your details</legend>
         <label className="block"><span className="lbl">Full name *</span><input name="name" required defaultValue={f.name} className="input" autoComplete="name" /></label>
         <label className="block"><span className="lbl">Phone / WhatsApp (with country code) *</span><input name="phone" required defaultValue={f.phone} className="input" placeholder="+20 100 123 4567" autoComplete="tel" inputMode="tel" /></label>
-        <label className="block"><span className="lbl">Email</span><input name="email" type="email" defaultValue={f.email} className="input" autoComplete="email" /></label>
+        <label className="block"><span className="lbl">Email (we send your confirmation here)</span><input name="email" type="email" defaultValue={f.email} className="input" autoComplete="email" /></label>
         <label className="block"><span className="lbl">Country</span><input name="country" defaultValue={f.country} className="input" autoComplete="country-name" placeholder="e.g. Egypt, Germany" /></label>
         {!isLivery && (
           <label className="block">

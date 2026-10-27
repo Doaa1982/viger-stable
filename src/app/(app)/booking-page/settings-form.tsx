@@ -22,7 +22,7 @@ export function SettingsForm({ s }: { s: S }) {
       <label className="block"><span className="lbl">Address</span><input name="address" defaultValue={s.address ?? ""} className="input" /></label>
       <label className="block"><span className="lbl">Google Maps link</span><input name="mapUrl" defaultValue={s.mapUrl ?? ""} className="input" placeholder="https://maps.app.goo.gl/…" /></label>
       <label className="block"><span className="lbl">WhatsApp number (with +20)</span><input name="whatsapp" defaultValue={s.whatsapp ?? ""} className="input" placeholder="+20 100 123 4567" /></label>
-      <label className="block"><span className="lbl">Email</span><input name="email" type="email" defaultValue={s.email ?? ""} className="input" /></label>
+      <label className="block"><span className="lbl">Email (new bookings are sent here)</span><input name="email" type="email" defaultValue={s.email ?? ""} className="input" /></label>
       <label className="block"><span className="lbl">Time slots (Egypt time, comma separated)</span><input name="timeSlots" defaultValue={s.timeSlots} className="input" /></label>
       <label className="block"><span className="lbl">USD rate (EGP per $1, used if a service has no USD price)</span><input name="usdRate" type="number" step="0.01" defaultValue={s.usdRate} className="input" /></label>
       <div className="md:col-span-2">

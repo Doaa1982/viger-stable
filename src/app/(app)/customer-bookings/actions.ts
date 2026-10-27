@@ -6,6 +6,7 @@ import { db, schema } from "@/db";
 import { requirePerm } from "@/lib/access";
 import { BOOKING_STATUSES } from "@/lib/booking";
 import { fmtTime } from "@/lib/utils";
+import { emailBookingStatus } from "@/lib/emails";
 
 export async function setBookingStatus(id: string, status: string) {
   const { user, ownerId } = await requirePerm("customerBookings");
@@ -35,6 +36,8 @@ export async function setBookingStatus(id: string, status: string) {
       description: `${b.reference} ${b.serviceName} - ${b.customerName} (${fmtTime(b.date)})`,
     });
   }
+  // Tell the customer by email (useful for visitors abroad)
+  if ((status === "CONFIRMED" || status === "CANCELLED") && b.status !== status) await emailBookingStatus({ ...b, status }, status);
   revalidatePath("/customer-bookings");
   revalidatePath("/dashboard");
 }
