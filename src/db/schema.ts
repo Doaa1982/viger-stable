@@ -361,6 +361,71 @@ export const files = sqliteTable("files", {
   createdAt: createdAt(),
 });
 
+// ─────────────────────────── Public booking (customers) ───────────────────────────
+
+/** The stable's public booking page settings. One row per stable owner. */
+export const bookingSettings = sqliteTable("booking_settings", {
+  id: id(),
+  ownerId: text("owner_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
+  slug: text("slug").notNull().unique(), // public address: /s/<slug>
+  displayName: text("display_name").notNull(),
+  tagline: text("tagline"),
+  about: text("about"),
+  address: text("address"),
+  mapUrl: text("map_url"),
+  whatsapp: text("whatsapp"), // international format, e.g. +201001234567
+  email: text("email"),
+  timeSlots: text("time_slots").notNull().default("07:00,08:30,10:00,15:30,17:00"), // comma separated, Egypt time
+  closedDays: text("closed_days").default(""), // comma separated weekday numbers 0=Sun..6=Sat
+  usdRate: real("usd_rate").notNull().default(50), // EGP per 1 USD (used when a service has no USD price)
+  payOnArrival: bool("pay_on_arrival").notNull().default(true),
+  payByTransfer: bool("pay_by_transfer").notNull().default(true),
+  transferDetails: text("transfer_details"), // InstaPay / bank details shown after booking
+  isPublished: bool("is_published").notNull().default(true),
+  createdAt: createdAt(),
+});
+
+/** Bookable services: rides, lessons, camel rides, livery. */
+export const services = sqliteTable("services", {
+  id: id(),
+  ownerId: text("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  category: text("category").notNull().default("RIDE"), // enum: RIDE | LESSON | CAMEL | LIVERY
+  description: text("description"),
+  durationMin: integer("duration_min"), // null for livery
+  priceEgp: real("price_egp").notNull(),
+  priceUsd: real("price_usd"),
+  priceUnit: text("price_unit").notNull().default("PERSON"), // enum: PERSON | GROUP | MONTH
+  maxGuests: integer("max_guests").notNull().default(6), // per time slot
+  minAge: integer("min_age"),
+  imageUrl: text("image_url"),
+  active: bool("active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: createdAt(),
+});
+
+/** A booking request from a member of the public (no account needed). */
+export const customerBookings = sqliteTable("customer_bookings", {
+  id: id(),
+  ownerId: text("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  serviceId: text("service_id").references(() => services.id, { onDelete: "set null" }),
+  reference: text("reference").notNull().unique(), // shown to the customer, e.g. VS-7KQ2MD
+  serviceName: text("service_name").notNull(), // kept even if the service is later deleted
+  customerName: text("customer_name").notNull(),
+  phone: text("phone").notNull(),
+  email: text("email"),
+  country: text("country"),
+  guests: integer("guests").notNull().default(1),
+  date: ts("date").notNull(), // start date/time (Egypt time); livery = start date
+  experience: text("experience"), // enum: NONE | SOME | CONFIDENT
+  notes: text("notes"),
+  paymentMethod: text("payment_method").notNull().default("ARRIVAL"), // enum: ARRIVAL | TRANSFER
+  status: text("status").notNull().default("REQUESTED"), // enum: REQUESTED | CONFIRMED | PAID | COMPLETED | CANCELLED
+  totalEgp: real("total_egp").notNull(),
+  totalUsd: real("total_usd"),
+  createdAt: createdAt(),
+});
+
 // ─────────────────────────── Relations ───────────────────────────
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -489,4 +554,12 @@ export const jobsRelations = relations(jobs, ({ one, many }) => ({
 export const applicationsRelations = relations(applications, ({ one }) => ({
   job: one(jobs, { fields: [applications.jobId], references: [jobs.id] }),
   applicant: one(users, { fields: [applications.applicantId], references: [users.id] }),
+}));
+
+export const servicesRelations = relations(services, ({ many }) => ({
+  bookings: many(customerBookings),
+}));
+
+export const customerBookingsRelations = relations(customerBookings, ({ one }) => ({
+  service: one(services, { fields: [customerBookings.serviceId], references: [services.id] }),
 }));

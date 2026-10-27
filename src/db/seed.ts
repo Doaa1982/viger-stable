@@ -1,7 +1,9 @@
 /* Demo data for Viger Stable. Run with: npm run db:seed  (wipes existing data) */
 import bcrypt from "bcryptjs";
+import { eq } from "drizzle-orm";
 import { db, schema as s } from "./index";
 import { addDays, startOfDay, ymd, zonedDate } from "../lib/utils";
+import { ensureBookingPage, newReference } from "../lib/booking";
 
 // All demo times are in the stable's time zone (Egypt), wherever the seed is run from
 const today = startOfDay();
@@ -10,6 +12,7 @@ const at = (offsetDays: number, hour = 9, min = 0) => zonedDate(`${ymd(addDays(t
 
 async function wipe() {
   const order = [
+    s.customerBookings, s.services, s.bookingSettings, s.files,
     s.assistantMessages, s.applications, s.jobs, s.bookings, s.messages, s.comments, s.likes, s.posts,
     s.invoices, s.transactions, s.gaitAnalyses, s.breedingRecords, s.horseConflicts, s.feedPlans,
     s.healthRecords, s.timeEntries, s.shifts, s.tasks, s.trialRequests, s.trialSlots, s.savedHorses,
@@ -214,7 +217,21 @@ async function main() {
     { jobId: job.id, applicantId: rider.id, message: "Groomed at shows for 3 years for a show jumping yard in Giza, experienced with first aid, bandaging and travelling horses." },
   ]);
 
-  console.log("Seeded demo data.\nLog in with demo@vigerstable.com / password123 (stable)");
+  // ── Public booking page + example customer requests ──
+  await ensureBookingPage({ id: stable.id, name: stable.name, city: stable.city, phone: "+201001112233" });
+  const svc = await db.query.services.findMany();
+  const byName = (n: string) => svc.find((x) => x.name.startsWith(n))!;
+  const sunset = byName("Sunset ride");
+  const camel = byName("Desert camel");
+  const lesson = byName("Beginner riding");
+  await db.insert(s.customerBookings).values([
+    { ownerId: stable.id, serviceId: sunset.id, serviceName: sunset.name, reference: newReference(), customerName: "Emma Schneider", phone: "+4915112345678", email: "emma@example.com", country: "Germany", guests: 2, date: at(1, 15, 30), experience: "SOME", notes: "Celebrating our anniversary!", paymentMethod: "ARRIVAL", status: "REQUESTED", totalEgp: sunset.priceEgp * 2, totalUsd: (sunset.priceUsd ?? 0) * 2 },
+    { ownerId: stable.id, serviceId: camel.id, serviceName: camel.name, reference: newReference(), customerName: "Ahmed Khaled", phone: "+201223334455", country: "Egypt", guests: 4, date: at(2, 10), experience: "NONE", paymentMethod: "TRANSFER", status: "CONFIRMED", totalEgp: camel.priceEgp * 4, totalUsd: (camel.priceUsd ?? 0) * 4 },
+    { ownerId: stable.id, serviceId: lesson.id, serviceName: lesson.name, reference: newReference(), customerName: "Sara Mahmoud", phone: "+201114445566", country: "Egypt", guests: 1, date: at(0, 17), experience: "NONE", notes: "My daughter, 9 years old", paymentMethod: "ARRIVAL", status: "PAID", totalEgp: lesson.priceEgp, totalUsd: lesson.priceUsd },
+  ]);
+  await db.update(s.users).set({ phone: "+201001112233" }).where(eq(s.users.id, stable.id));
+
+  console.log("Seeded demo data.\nLog in with demo@vigerstable.com / password123 (stable)\nPublic booking page: /s/viger-stable");
   console.log("Other demo users: rider@demo.com, vet@demo.com, farrier@demo.com, coach@demo.com, fan@demo.com (same password)");
 }
 

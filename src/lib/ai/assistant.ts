@@ -76,6 +76,11 @@ const tools: Anthropic.Tool[] = [
     },
   },
   {
+    name: "customer_bookings",
+    description: "Bookings from the public booking page (rides, lessons, camel rides, livery). scope: 'today', 'tomorrow', 'upcoming' (next 14 days) or 'requests' (waiting for confirmation).",
+    input_schema: { type: "object", properties: { scope: { type: "string", enum: ["today", "tomorrow", "upcoming", "requests"] } }, required: ["scope"] },
+  },
+  {
     name: "finance_summary",
     description: "Income, expenses and net for the current month, plus top expense categories and unpaid invoices.",
     input_schema: { type: "object", properties: {} },
@@ -195,6 +200,20 @@ async function runTool(userId: string, name: string, input: Record<string, unkno
         });
       }
       return `Logged ${label(String(input.type))} for ${horse.name}.`;
+    }
+    case "customer_bookings": {
+      const scope = String(input.scope);
+      const from = scope === "tomorrow" ? addDays(today, 1) : today;
+      const to = scope === "today" ? addDays(today, 1) : scope === "tomorrow" ? addDays(today, 2) : addDays(today, 15);
+      let rows = await db.query.customerBookings.findMany({
+        where: and(eq(schema.customerBookings.ownerId, userId), gte(schema.customerBookings.date, from), lt(schema.customerBookings.date, to)),
+        orderBy: asc(schema.customerBookings.date),
+      });
+      rows = rows.filter((b) => (scope === "requests" ? b.status === "REQUESTED" : b.status !== "CANCELLED"));
+      if (!rows.length) return "No customer bookings.";
+      return rows
+        .map((b) => `${b.reference}: ${b.serviceName} - ${fmtDateTime(b.date)} - ${b.customerName} (${b.guests}, ${b.country ?? "?"}, ${b.experience ?? "?"}) - ${egp(b.totalEgp)} - ${b.status} - pays ${b.paymentMethod === "TRANSFER" ? "by transfer" : "at stable"}${b.notes ? ` - note: ${b.notes}` : ""}`)
+        .join("\n");
     }
     case "finance_summary": {
       const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);

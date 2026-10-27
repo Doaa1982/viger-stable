@@ -38,6 +38,13 @@ export default async function Dashboard() {
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
   const tx = await db.query.transactions.findMany({ where: and(eq(schema.transactions.ownerId, user.id), gte(schema.transactions.date, monthStart)) });
   const net = tx.reduce((s, t) => s + (t.kind === "INCOME" ? t.amount : -t.amount), 0);
+  const customer = await db.query.customerBookings.findMany({
+    where: and(eq(schema.customerBookings.ownerId, user.id), gte(schema.customerBookings.date, today)),
+    orderBy: asc(schema.customerBookings.date),
+    limit: 50,
+  });
+  const customerUpcoming = customer.filter((b) => b.status !== "CANCELLED").slice(0, 5);
+  const customerRequests = customer.filter((b) => b.status === "REQUESTED").length;
   const upcomingBookings = await db.query.bookings.findMany({
     where: and(eq(schema.bookings.clientId, user.id), gte(schema.bookings.date, today)),
     with: { pro: true, horse: true },
@@ -96,6 +103,21 @@ export default async function Dashboard() {
                   <Link href={`/horses/${h.horseId}`} className="link">{h.horse}</Link>
                   <span>{label(h.type)}</span>
                   {h.nextDue && h.nextDue < today ? <Badge tone="red">Overdue {fmtDate(h.nextDue)}</Badge> : <Badge tone="amber">{fmtDate(h.nextDue)}</Badge>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card title={<span className="flex items-center gap-2">Customer bookings {customerRequests > 0 && <Badge tone="amber">{customerRequests} new</Badge>}</span>} actions={<Link href="/customer-bookings" className="link text-sm">All →</Link>}>
+          {customerUpcoming.length === 0 ? (
+            <Empty action={<Link href="/booking-page" className="btn-secondary btn-sm">Set up booking page</Link>}>No upcoming customer bookings.</Empty>
+          ) : (
+            <ul className="divide-y divide-stone-100">
+              {customerUpcoming.map((b) => (
+                <li key={b.id} className="flex items-center justify-between py-2 text-sm">
+                  <span>{fmtDateTime(b.date)} · {b.serviceName} · {b.customerName} ({b.guests})</span>
+                  <Badge tone={b.status === "REQUESTED" ? "amber" : b.status === "PAID" ? "green" : "blue"}>{label(b.status)}</Badge>
                 </li>
               ))}
             </ul>

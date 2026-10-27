@@ -6,6 +6,7 @@ const features = [
   { t: "Run your yard", d: "Daily tasks, staff rota and time clock, health records, feeding plans, stall board, livery billing and finance in EGP." },
   { t: "Horse marketplace", d: "Horse profiles, private pricing with budget stars, trial booking, and AI search that understands plain language." },
   { t: "Breeding & stud", d: "Season board for every mare, foaling dates, and an AI mating advisor that flags inbreeding risk." },
+  { t: "Online booking", d: "A public page where Egyptians and tourists book rides, lessons, camel tours and livery - prices in EGP and USD." },
   { t: "Community", d: "The Arena feed, direct messages with horse cards, professional bookings and an equestrian jobs board." },
 ];
 
@@ -41,9 +42,10 @@ export default async function Landing() {
           <Link href="/login" className="btn-secondary px-6 py-3 text-base">Try the demo</Link>
         </div>
         <p className="mt-3 text-xs text-stone-500">Demo login: demo@vigerstable.com / password123</p>
+        <p className="mt-2 text-sm"><Link href="/s/viger-stable" className="link">See a stable&apos;s public booking page →</Link></p>
       </section>
 
-      <section className="mx-auto grid max-w-6xl gap-4 px-6 md:grid-cols-4">
+      <section className="mx-auto grid max-w-6xl gap-4 px-6 md:grid-cols-5">
         {features.map((f) => (
           <div key={f.t} className="card">
             <h3 className="font-semibold">{f.t}</h3>

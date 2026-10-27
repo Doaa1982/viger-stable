@@ -20,6 +20,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {
             title: "Run the yard",
             items: [
+              { href: "/customer-bookings", label: "Customer bookings" },
+              { href: "/booking-page", label: "Booking page" },
               { href: "/tasks", label: "Tasks" },
               { href: "/staff", label: "Staff & rota" },
               { href: "/health", label: "Health Hub" },

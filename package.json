@@ -13,7 +13,8 @@
     "db:studio": "drizzle-kit studio",
     "setup": "npm run db:migrate && npm run db:seed",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx --env-file=.env src/db/migrate.ts"
+    "db:migrate": "tsx --env-file=.env src/db/migrate.ts",
+    "vercel-build": "tsx src/db/migrate.ts && next build"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.137.0",
